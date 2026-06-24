@@ -744,13 +744,4 @@ function ConfirmScreen({ bookingId, onHome }: { bookingId: string; onHome: () =>
   );
 }
 
-/* ---------- STUB ---------- */
-function Stub({ title, onBack }: { title: string; onBack: () => void }) {
-  return (
-    <div>
-      <button className="back-btn" onClick={onBack}>‹ Назад</button>
-      <div className="sect-title">{title}</div>
-      <div className="empty">Этот экран собираем на следующем шаге.</div>
-    </div>
-  );
-}
+
