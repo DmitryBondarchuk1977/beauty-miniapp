@@ -284,7 +284,7 @@ type RevRow = {
   specialist_rating: number;
   comment: string | null;
   created_at: string;
-  client: { first_name: string | null } | null;
+  client_name: string | null;
   service: { name: string } | null;
 };
 
@@ -312,7 +312,7 @@ export async function fetchSpecialistDetail(id: string): Promise<{
       .order("sort_order"),
     supabase
       .from("reviews")
-      .select("specialist_rating, comment, created_at, client:users ( first_name ), service:services ( name )")
+      .select("specialist_rating, comment, created_at, client_name, service:services ( name )")
       .eq("specialist_id", id)
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -333,7 +333,7 @@ export async function fetchSpecialistDetail(id: string): Promise<{
     rating: r.specialist_rating,
     comment: r.comment,
     created_at: r.created_at,
-    client_name: r.client?.first_name ?? "Гость",
+    client_name: r.client_name?.trim() || "Клиент",
     service_name: r.service?.name ?? null,
   }));
 
