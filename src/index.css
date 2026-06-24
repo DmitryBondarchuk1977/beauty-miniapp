@@ -361,3 +361,7 @@ img { max-width: 100%; display: block; }
 .bk-status.s-paid { background: #e9f8ef; color: #1a9e5e; }
 .bk-status.s-completed { background: #f0ecff; color: #7a5bd0; }
 .bk-status.s-cancelled, .bk-status.s-no_show { background: #fdeaea; color: #e03945; }
+
+/* эмодзи-иконка в таб-баре */
+.tab-emoji { font-size: 23px; line-height: 1; display: block; filter: saturate(1.1); }
+.tab.on .tab-emoji { transform: scale(1.08); }

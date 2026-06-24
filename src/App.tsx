@@ -137,11 +137,16 @@ function TabBar({
   cartCount: number;
   onTab: (n: "home" | "bookings" | "cart" | "profile") => void;
 }) {
+  // Свежие версии Telegram (>= 6.0) хорошо показывают цветные эмодзи,
+  // на старых вебвью — фолбэк на SVG.
+  const ver = parseFloat(window.Telegram?.WebApp?.version ?? "0");
+  const useEmoji = ver >= 6.0;
+
   const tabs = [
-    { key: "home" as const, label: "Главная", icon: IconHome },
-    { key: "bookings" as const, label: "Записи", icon: IconCalendar },
-    { key: "cart" as const, label: "Корзина", icon: IconBag },
-    { key: "profile" as const, label: "Профиль", icon: IconUser },
+    { key: "home" as const, label: "Главная", icon: IconHome, emoji: "🏠" },
+    { key: "bookings" as const, label: "Записи", icon: IconCalendar, emoji: "🗓" },
+    { key: "cart" as const, label: "Корзина", icon: IconBag, emoji: "🛒" },
+    { key: "profile" as const, label: "Профиль", icon: IconUser, emoji: "👤" },
   ];
   return (
     <nav className="tabbar">
@@ -151,7 +156,7 @@ function TabBar({
         return (
           <button key={t.key} className={`tab ${on ? "on" : ""}`} onClick={() => onTab(t.key)}>
             <span className="tab-ic">
-              <Icon />
+              {useEmoji ? <span className="tab-emoji">{t.emoji}</span> : <Icon />}
               {t.key === "cart" && cartCount > 0 && <span className="tab-badge">{cartCount}</span>}
             </span>
             <span className="tab-lb">{t.label}</span>
