@@ -21,7 +21,36 @@ export type SpecialistCard = {
   price_from: number | null;
 };
 
+export type Chip = { id: string; name: string };
+
+export type ServiceCard = {
+  id: string;
+  name: string;
+  image_url: string | null;
+  duration_min: number;
+  price_from: number | null;
+  branch_id: string | null;
+};
+
+export type ServiceDetail = {
+  id: string;
+  name: string;
+  image_url: string | null;
+  duration_min: number;
+  description: string | null;
+};
+
+export type Master = {
+  id: string;
+  full_name: string;
+  photo_url: string | null;
+  rating: number;
+  price: number;
+};
+
 export type Screen =
   | { name: "home" }
   | { name: "category"; id: string; title: string }
-  | { name: "specialist"; id: string };
+  | { name: "service"; id: string }
+  | { name: "specialist"; id: string }
+  | { name: "booking"; serviceId: string; specialistId: string };

@@ -138,3 +138,58 @@ img { max-width: 100%; display: block; }
 }
 .skeleton { background: var(--card); border-radius: var(--radius); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* ---- чипсы подкатегорий ---- */
+.subchips { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 2px 0 10px; }
+.subchips::-webkit-scrollbar { display: none; }
+.subchip {
+  flex: none; border: none; border-radius: 999px; padding: 8px 15px; font-size: 13px; font-weight: 600;
+  background: var(--card); color: var(--text); cursor: pointer; white-space: nowrap;
+}
+.subchip.on { background: var(--accent); color: #fff; }
+
+/* ---- список услуг ---- */
+.svc-list { display: flex; flex-direction: column; gap: 10px; }
+.svc-row {
+  display: flex; gap: 12px; align-items: center; background: var(--card);
+  border-radius: var(--radius); padding: 8px; cursor: pointer;
+}
+.svc-thumb {
+  width: 64px; height: 64px; flex: none; border-radius: 10px; overflow: hidden;
+  background: linear-gradient(160deg, #f3e6ec, #faf3f7);
+}
+.svc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.svc-info { flex: 1; min-width: 0; }
+.svc-name { font-size: 14px; font-weight: 600; line-height: 1.25; }
+.svc-sub { font-size: 12px; color: var(--hint); margin-top: 3px; }
+.svc-price { flex: none; text-align: right; font-size: 14px; font-weight: 700; }
+.svc-price small { display: block; font-size: 11px; font-weight: 400; color: var(--hint); }
+
+/* ---- экран услуги ---- */
+.detail-hero {
+  width: 100%; aspect-ratio: 16/10; border-radius: 18px; overflow: hidden;
+  background: linear-gradient(160deg, #f3e6ec, #faf3f7); margin-bottom: 14px;
+}
+.detail-hero img { width: 100%; height: 100%; object-fit: cover; }
+.detail-title { font-size: 22px; font-weight: 800; margin: 0 0 6px; }
+.detail-meta { display: flex; gap: 14px; color: var(--hint); font-size: 14px; margin-bottom: 4px; }
+.detail-desc { color: var(--text); font-size: 15px; margin: 10px 0; white-space: pre-wrap; }
+
+/* ---- мастера в услуге ---- */
+.master-row {
+  display: flex; gap: 12px; align-items: center; background: var(--card);
+  border-radius: var(--radius); padding: 10px; margin-bottom: 10px; cursor: pointer;
+}
+.master-photo {
+  width: 52px; height: 52px; flex: none; border-radius: 50%; overflow: hidden;
+  background: linear-gradient(160deg, #f3e6ec, #faf3f7);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; color: #c98fab;
+}
+.master-photo img { width: 100%; height: 100%; object-fit: cover; }
+.master-info { flex: 1; min-width: 0; }
+.master-name { font-size: 15px; font-weight: 600; }
+.master-rating { font-size: 13px; color: #f0a500; font-weight: 600; margin-top: 2px; }
+.master-cta { flex: none; text-align: right; }
+.master-cta .p { font-size: 15px; font-weight: 700; }
+.master-cta .go { font-size: 12px; color: var(--accent); font-weight: 600; }

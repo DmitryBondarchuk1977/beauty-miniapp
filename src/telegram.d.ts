@@ -1,4 +1,10 @@
-﻿interface TelegramWebApp {
+interface TelegramBackButton {
+  show: () => void;
+  hide: () => void;
+  onClick: (cb: () => void) => void;
+  offClick: (cb: () => void) => void;
+}
+interface TelegramWebApp {
   ready: () => void;
   expand: () => void;
   initData: string;
@@ -6,6 +12,7 @@
     user?: { id: number; first_name?: string; last_name?: string; username?: string };
   };
   colorScheme?: "light" | "dark";
+  BackButton?: TelegramBackButton;
 }
 interface Window {
   Telegram?: { WebApp: TelegramWebApp };
