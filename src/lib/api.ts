@@ -243,3 +243,16 @@ export async function apiBook(serviceId: string, specialistId: string, startsAt:
     return { status: 0, data: null };
   }
 }
+
+export async function apiConfirm(bookingId: string) {
+  try {
+    const res = await fetch(`${API}/api/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), booking_id: bookingId }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

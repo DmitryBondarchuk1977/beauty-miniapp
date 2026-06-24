@@ -9,6 +9,7 @@ import {
   fetchSlots,
   apiPrice,
   apiBook,
+  apiConfirm,
   type PriceResult,
 } from "./lib/api";
 import type {
@@ -25,7 +26,12 @@ import type {
 const tg = window.Telegram?.WebApp;
 
 export default function App() {
-  const [stack, setStack] = useState<Screen[]>([{ name: "home" }]);
+  const [stack, setStack] = useState<Screen[]>(() => {
+    const cid = new URLSearchParams(window.location.search).get("confirm");
+    return cid
+      ? [{ name: "home" }, { name: "confirm", bookingId: cid }]
+      : [{ name: "home" }];
+  });
   const screen = stack[stack.length - 1];
   const push = (s: Screen) => setStack((p) => [...p, s]);
   const back = () => setStack((p) => (p.length > 1 ? p.slice(0, -1) : p));
@@ -57,6 +63,13 @@ export default function App() {
     return <ServiceScreen id={screen.id} onNavigate={push} onBack={back} />;
   if (screen.name === "specialist")
     return <Stub title="Мастер" onBack={back} />;
+  if (screen.name === "confirm")
+    return (
+      <ConfirmScreen
+        bookingId={screen.bookingId}
+        onHome={() => setStack([{ name: "home" }])}
+      />
+    );
   return (
     <BookingScreen
       serviceId={screen.serviceId}
@@ -292,7 +305,7 @@ function ServiceScreen({
   const min = prices.length ? Math.min(...prices) : null;
   const max = prices.length ? Math.max(...prices) : null;
   const priceLabel =
-    min == null || max == null ? "—" : min === max ? fmtRub(min) : `${fmtRub(min)} – ${fmtRub(max)}`;
+    min == null ? "—" : min === max ? fmtRub(min) : `${fmtRub(min)} – ${fmtRub(max)}`;
 
   return (
     <div>
@@ -524,6 +537,70 @@ function BookingScreen({
         <button className="btn btn-primary" disabled={!slot || booking} onClick={book}>
           {booking ? "Записываем…" : slot ? `Записаться на ${slotTime(slot)}` : "Выберите время"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- CONFIRM (Приду) ---------- */
+function ConfirmScreen({ bookingId, onHome }: { bookingId: string; onHome: () => void }) {
+  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
+  const [info, setInfo] = useState<{ service: string | null; specialist: string | null; starts_at: string } | null>(null);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    apiConfirm(bookingId).then((r) => {
+      if (r.status === 200 && r.data?.ok) {
+        setInfo({ service: r.data.service, specialist: r.data.specialist, starts_at: r.data.starts_at });
+        setState("ok");
+      } else if (r.status === 401) {
+        setMsg("Подтверждение доступно только из Telegram.");
+        setState("error");
+      } else if (r.status === 403) {
+        setMsg("Эта запись принадлежит другому пользователю.");
+        setState("error");
+      } else if (r.status === 404) {
+        setMsg("Запись не найдена.");
+        setState("error");
+      } else {
+        setMsg("Не удалось подтвердить. Попробуйте позже.");
+        setState("error");
+      }
+    });
+  }, [bookingId]);
+
+  if (state === "loading") {
+    return (
+      <div className="success">
+        <div className="skeleton ico" style={{ background: "var(--card)" }} />
+        <p>Подтверждаем визит…</p>
+      </div>
+    );
+  }
+  if (state === "error") {
+    return (
+      <div className="success">
+        <div className="ico" style={{ background: "#fdeaea", color: "#e03945" }}>!</div>
+        <h2>Не получилось</h2>
+        <p>{msg}</p>
+        <div style={{ maxWidth: 280, margin: "24px auto 0" }}>
+          <button className="btn btn-primary" onClick={onHome}>На главную</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="success">
+      <div className="ico">✓</div>
+      <h2>Спасибо, ждём вас!</h2>
+      {info && (
+        <>
+          <p>{info.service} · {info.specialist}</p>
+          <p style={{ textTransform: "capitalize" }}>{fullDateTime(info.starts_at)}</p>
+        </>
+      )}
+      <div style={{ maxWidth: 280, margin: "24px auto 0" }}>
+        <button className="btn btn-primary" onClick={onHome}>На главную</button>
       </div>
     </div>
   );
