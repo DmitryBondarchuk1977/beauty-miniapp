@@ -54,4 +54,13 @@ export type Screen =
   | { name: "service"; id: string }
   | { name: "specialist"; id: string }
   | { name: "confirm"; bookingId: string }
+  | { name: "cart" }
   | { name: "booking"; serviceId: string; specialistId: string };
+
+export type CartItem = {
+  service_id: string;
+  service_name: string;
+  specialist_id: string;
+  specialist_name: string;
+  base_price: number;
+};

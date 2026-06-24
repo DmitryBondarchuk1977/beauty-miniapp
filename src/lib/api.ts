@@ -345,3 +345,43 @@ export async function fetchSpecialistDetail(id: string): Promise<{
     reviewCount: reviews.length,
   };
 }
+
+/* ---------- корзина: расчёт ---------- */
+export type CartPriceItem = {
+  service_id: string;
+  specialist_id: string;
+  full_price: number;
+  discount_amount: number;
+  final_price: number;
+  promo_title: string | null;
+  error?: string;
+};
+export type CartGift = {
+  promo_id: string;
+  promo_title: string;
+  gift_service_id: string;
+  gift_service_name: string;
+  gift_discount_percent: number;
+};
+export type CartPrice = {
+  items: CartPriceItem[];
+  gifts: CartGift[];
+  subtotal: number;
+  discount_total: number;
+  total: number;
+};
+
+export async function apiPriceCart(
+  items: { service_id: string; specialist_id: string }[],
+): Promise<{ status: number; data: CartPrice | null }> {
+  try {
+    const res = await fetch(`${API}/api/price-cart`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), items }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

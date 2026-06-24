@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   fetchCategories,
   fetchPromos,
@@ -11,10 +11,12 @@ import {
   apiBook,
   apiConfirm,
   fetchSpecialistDetail,
+  apiPriceCart,
   type PriceResult,
   type SpecServiceItem,
   type Work,
   type Review,
+  type CartPrice,
 } from "./lib/api";
 import type {
   Category,
@@ -25,6 +27,7 @@ import type {
   ServiceDetail,
   Master,
   Screen,
+  CartItem,
 } from "./types";
 
 const tg = window.Telegram?.WebApp;
@@ -39,6 +42,15 @@ export default function App() {
   const screen = stack[stack.length - 1];
   const push = (s: Screen) => setStack((p) => [...p, s]);
   const back = () => setStack((p) => (p.length > 1 ? p.slice(0, -1) : p));
+
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const addToCart = (item: CartItem) =>
+    setCart((p) =>
+      p.some((x) => x.service_id === item.service_id && x.specialist_id === item.specialist_id)
+        ? p
+        : [...p, item],
+    );
+  const removeFromCart = (i: number) => setCart((p) => p.filter((_, idx) => idx !== i));
 
   useEffect(() => {
     tg?.ready();
@@ -60,27 +72,46 @@ export default function App() {
     else bb.hide();
   }, [stack.length]);
 
-  if (screen.name === "home") return <Home onNavigate={push} />;
-  if (screen.name === "category")
-    return <CategoryScreen id={screen.id} title={screen.title} onNavigate={push} onBack={back} />;
-  if (screen.name === "service")
-    return <ServiceScreen id={screen.id} onNavigate={push} onBack={back} />;
-  if (screen.name === "specialist")
-    return <SpecialistScreen id={screen.id} onNavigate={push} onBack={back} />;
-  if (screen.name === "confirm")
-    return (
-      <ConfirmScreen
-        bookingId={screen.bookingId}
+  let content: ReactNode;
+  if (screen.name === "home") content = <Home onNavigate={push} />;
+  else if (screen.name === "category")
+    content = <CategoryScreen id={screen.id} title={screen.title} onNavigate={push} onBack={back} />;
+  else if (screen.name === "service")
+    content = <ServiceScreen id={screen.id} onNavigate={push} onBack={back} onAddToCart={addToCart} />;
+  else if (screen.name === "specialist")
+    content = <SpecialistScreen id={screen.id} onNavigate={push} onBack={back} />;
+  else if (screen.name === "confirm")
+    content = <ConfirmScreen bookingId={screen.bookingId} onHome={() => setStack([{ name: "home" }])} />;
+  else if (screen.name === "cart")
+    content = (
+      <CartScreen
+        cart={cart}
+        onRemove={removeFromCart}
+        onBack={back}
+        onAdd={() => setStack([{ name: "home" }])}
+      />
+    );
+  else
+    content = (
+      <BookingScreen
+        serviceId={screen.serviceId}
+        specialistId={screen.specialistId}
+        onBack={back}
         onHome={() => setStack([{ name: "home" }])}
       />
     );
+
+  const showFab = cart.length > 0 && screen.name !== "cart" && screen.name !== "confirm";
+
   return (
-    <BookingScreen
-      serviceId={screen.serviceId}
-      specialistId={screen.specialistId}
-      onBack={back}
-      onHome={() => setStack([{ name: "home" }])}
-    />
+    <>
+      {content}
+      {showFab && (
+        <button className="cart-fab" onClick={() => push({ name: "cart" })}>
+          🛒 Корзина · {cart.length}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -274,8 +305,13 @@ function CategoryScreen({
 
 /* ---------- SERVICE ---------- */
 function ServiceScreen({
-  id, onNavigate, onBack,
-}: { id: string; onNavigate: (s: Screen) => void; onBack: () => void }) {
+  id, onNavigate, onBack, onAddToCart,
+}: {
+  id: string;
+  onNavigate: (s: Screen) => void;
+  onBack: () => void;
+  onAddToCart: (item: CartItem) => void;
+}) {
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [masters, setMasters] = useState<Master[]>([]);
   const [loading, setLoading] = useState(true);
@@ -328,21 +364,46 @@ function ServiceScreen({
         <div className="empty">Пока нет мастеров, выполняющих эту услугу.</div>
       ) : (
         masters.map((m) => (
-          <div
-            key={m.id}
-            className="master-row"
-            onClick={() => onNavigate({ name: "booking", serviceId: service.id, specialistId: m.id })}
-          >
-            <div className="master-photo">
+          <div key={m.id} className="master-row">
+            <div
+              className="master-photo"
+              onClick={() => onNavigate({ name: "booking", serviceId: service.id, specialistId: m.id })}
+            >
               {m.photo_url ? <img src={m.photo_url} alt={m.full_name} /> : initials(m.full_name)}
             </div>
-            <div className="master-info">
+            <div
+              className="master-info"
+              onClick={() => onNavigate({ name: "booking", serviceId: service.id, specialistId: m.id })}
+            >
               <div className="master-name">{m.full_name}</div>
               <div className="master-rating">★ {m.rating?.toFixed(1) ?? "0.0"}</div>
             </div>
             <div className="master-cta">
               <div className="p">{fmtRub(m.price)}</div>
-              <div className="go">Записаться ›</div>
+              <div className="row-btns">
+                <button
+                  className="mini-btn"
+                  onClick={() =>
+                    onNavigate({ name: "booking", serviceId: service.id, specialistId: m.id })
+                  }
+                >
+                  Записаться
+                </button>
+                <button
+                  className="mini-btn ghost"
+                  onClick={() =>
+                    onAddToCart({
+                      service_id: service.id,
+                      service_name: service.name,
+                      specialist_id: m.id,
+                      specialist_name: m.full_name,
+                      base_price: m.price,
+                    })
+                  }
+                >
+                  + в корзину
+                </button>
+              </div>
             </div>
           </div>
         ))
@@ -680,6 +741,130 @@ function SpecialistScreen({
   );
 }
 
+/* ---------- CART ---------- */
+function CartScreen({
+  cart,
+  onRemove,
+  onBack,
+  onAdd,
+}: {
+  cart: CartItem[];
+  onRemove: (i: number) => void;
+  onBack: () => void;
+  onAdd: () => void;
+}) {
+  const [price, setPrice] = useState<CartPrice | null>(null);
+  const [soon, setSoon] = useState(false);
+
+  useEffect(() => {
+    if (cart.length === 0) { setPrice(null); return; }
+    apiPriceCart(cart.map((c) => ({ service_id: c.service_id, specialist_id: c.specialist_id }))).then(
+      (r) => {
+        if (r.status === 200 && r.data) setPrice(r.data);
+      },
+    );
+  }, [cart]);
+
+  if (cart.length === 0) {
+    return (
+      <div>
+        <button className="back-btn" onClick={onBack}>‹ Назад</button>
+        <div className="sect-title" style={{ marginTop: 0 }}>Корзина</div>
+        <div className="empty">В корзине пусто. Добавьте услуги, чтобы записаться на несколько процедур сразу.</div>
+        <div style={{ maxWidth: 320, margin: "16px auto 0" }}>
+          <button className="btn btn-primary" onClick={onAdd}>К услугам</button>
+        </div>
+      </div>
+    );
+  }
+
+  const subtotal = price?.subtotal ?? cart.reduce((s, c) => s + c.base_price, 0);
+  const discount = price?.discount_total ?? 0;
+  const total = price?.total ?? subtotal;
+
+  return (
+    <div>
+      <button className="back-btn" onClick={onBack}>‹ Назад</button>
+      <div className="sect-title" style={{ marginTop: 0 }}>Корзина</div>
+
+      {cart.map((c, i) => {
+        const p = price?.items[i];
+        const full = p?.full_price ?? c.base_price;
+        const final = p?.final_price ?? c.base_price;
+        const disc = p?.discount_amount ?? 0;
+        return (
+          <div className="cart-row" key={`${c.service_id}-${c.specialist_id}`}>
+            <div className="cart-main">
+              <div className="nm">{c.service_name}</div>
+              <div className="su">{c.specialist_name}</div>
+              {disc > 0 && p?.promo_title && <div className="promo">{p.promo_title}</div>}
+            </div>
+            <div className="cart-price">
+              {disc > 0 ? (
+                <>
+                  <span className="old">{fmtRub(full)}</span>
+                  <span className="now">{fmtRub(final)}</span>
+                </>
+              ) : (
+                <span className="now">{fmtRub(full)}</span>
+              )}
+            </div>
+            <button className="cart-del" onClick={() => onRemove(i)} aria-label="Удалить">×</button>
+          </div>
+        );
+      })}
+
+      {price && price.gifts.length > 0 && (
+        <>
+          <div className="sect-title">В подарок</div>
+          {price.gifts.map((g) => (
+            <div className="cart-row gift" key={g.promo_id}>
+              <div className="cart-main">
+                <div className="nm">🎁 {g.gift_service_name}</div>
+                <div className="su">{g.promo_title}</div>
+              </div>
+              <div className="cart-price">
+                <span className="now">
+                  {g.gift_discount_percent >= 100 ? "бесплатно" : `−${g.gift_discount_percent}%`}
+                </span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      <div className="price-card">
+        <div className="price-row muted">
+          <span>Стоимость</span>
+          <span>{fmtRub(subtotal)}</span>
+        </div>
+        {discount > 0 && (
+          <div className="price-row discount">
+            <span>Скидка</span>
+            <span>−{fmtRub(discount)}</span>
+          </div>
+        )}
+        <div className="price-row total">
+          <span>К оплате</span>
+          <span>{fmtRub(total)}</span>
+        </div>
+      </div>
+
+      {price && price.gifts.length > 0 && (
+        <div className="book-note">Подарок и время по каждой услуге выберете на следующем шаге.</div>
+      )}
+
+      <div className="book-bar">
+        <button className="btn btn-primary" onClick={() => setSoon(true)}>Выбрать время</button>
+        <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={onAdd}>Добавить ещё услугу</button>
+        {soon && (
+          <div className="book-note">Выбор времени по каждой позиции добавляем следующим шагом.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- CONFIRM (Приду) ---------- */
 function ConfirmScreen({ bookingId, onHome }: { bookingId: string; onHome: () => void }) {
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
@@ -743,5 +928,4 @@ function ConfirmScreen({ bookingId, onHome }: { bookingId: string; onHome: () =>
     </div>
   );
 }
-
 

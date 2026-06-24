@@ -277,3 +277,39 @@ img { max-width: 100%; display: block; }
 .review-date { font-size: 12px; color: var(--hint); }
 .review-text { font-size: 14px; margin: 6px 0 0; }
 .review-who { font-size: 12px; color: var(--hint); margin-top: 6px; }
+
+/* ---- корзина: плавающая кнопка ---- */
+.cart-fab {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  background: var(--accent); color: #fff; border: none; cursor: pointer;
+  padding: 13px 22px; border-radius: 999px; font-size: 15px; font-weight: 700;
+  box-shadow: 0 6px 20px rgba(194, 85, 122, .4); z-index: 50;
+}
+
+/* ---- кнопки в строке мастера ---- */
+.row-btns { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-end; }
+.mini-btn {
+  border: none; border-radius: 10px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: var(--accent); color: #fff; white-space: nowrap;
+}
+.mini-btn.ghost { background: var(--card); color: var(--accent); border: 1px solid var(--accent); }
+
+/* ---- корзина: строки ---- */
+.cart-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px;
+}
+.cart-row.gift { background: #fbf1f6; }
+.cart-main { flex: 1; min-width: 0; }
+.cart-main .nm { font-size: 15px; font-weight: 600; }
+.cart-main .su { font-size: 13px; color: var(--hint); margin-top: 2px; }
+.cart-main .promo { font-size: 12px; color: var(--accent); margin-top: 4px; }
+.cart-price { text-align: right; flex: none; }
+.cart-price .old { display: block; font-size: 12px; color: var(--hint); text-decoration: line-through; }
+.cart-price .now { font-size: 15px; font-weight: 700; }
+.cart-del {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer;
+  background: rgba(0, 0, 0, .06); color: var(--hint); font-size: 18px; line-height: 1;
+}
+.btn-ghost { background: var(--card); color: var(--accent); border: 1px solid var(--accent); }
