@@ -5,6 +5,11 @@ import {
   fetchSpecialists,
   fetchCategoryView,
   fetchServiceDetail,
+  fetchBookingContext,
+  fetchSlots,
+  apiPrice,
+  apiBook,
+  type PriceResult,
 } from "./lib/api";
 import type {
   Category,
@@ -52,7 +57,14 @@ export default function App() {
     return <ServiceScreen id={screen.id} onNavigate={push} onBack={back} />;
   if (screen.name === "specialist")
     return <Stub title="Мастер" onBack={back} />;
-  return <Stub title="Запись" onBack={back} />;
+  return (
+    <BookingScreen
+      serviceId={screen.serviceId}
+      specialistId={screen.specialistId}
+      onBack={back}
+      onHome={() => setStack([{ name: "home" }])}
+    />
+  );
 }
 
 /* ---------- helpers ---------- */
@@ -318,6 +330,201 @@ function ServiceScreen({
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+/* ---------- BOOKING ---------- */
+function nextDays(n = 21) {
+  const out: { dateStr: string; dow: string; dom: number }[] = [];
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  for (let i = 0; i < n; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    out.push({
+      dateStr: `${y}-${m}-${day}`,
+      dow: new Intl.DateTimeFormat("ru-RU", { weekday: "short" }).format(d),
+      dom: d.getDate(),
+    });
+  }
+  return out;
+}
+function slotTime(iso: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Moscow",
+  }).format(new Date(iso));
+}
+function fullDateTime(iso: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Moscow",
+  }).format(new Date(iso));
+}
+
+function BookingScreen({
+  serviceId,
+  specialistId,
+  onBack,
+  onHome,
+}: {
+  serviceId: string;
+  specialistId: string;
+  onBack: () => void;
+  onHome: () => void;
+}) {
+  const [ctx, setCtx] = useState<{
+    service: { name: string; duration_min: number } | null;
+    master: { full_name: string; photo_url: string | null } | null;
+    basePrice: number | null;
+  } | null>(null);
+  const [days] = useState(nextDays());
+  const [date, setDate] = useState(days[0].dateStr);
+  const [slots, setSlots] = useState<{ slot_start: string; slot_end: string }[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slot, setSlot] = useState<string | null>(null);
+  const [price, setPrice] = useState<PriceResult | null>(null);
+  const [booking, setBooking] = useState(false);
+  const [result, setResult] = useState<{ startsAt: string; final: number } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchBookingContext(serviceId, specialistId).then(setCtx);
+  }, [serviceId, specialistId]);
+  useEffect(() => {
+    apiPrice(serviceId, specialistId).then((r) => {
+      if (r.status === 200 && r.data) setPrice(r.data);
+    });
+  }, [serviceId, specialistId]);
+  useEffect(() => {
+    setSlotsLoading(true);
+    setSlot(null);
+    fetchSlots(specialistId, serviceId, date).then((s) => {
+      setSlots(s);
+      setSlotsLoading(false);
+    });
+  }, [date, specialistId, serviceId]);
+
+  async function book() {
+    if (!slot) return;
+    setBooking(true);
+    setErr(null);
+    const r = await apiBook(serviceId, specialistId, slot);
+    setBooking(false);
+    if (r.status === 200 && r.data?.ok) {
+      setResult({ startsAt: r.data.starts_at, final: r.data.final_price });
+    } else if (r.status === 401) {
+      setErr("Запись доступна только из Telegram.");
+    } else if (r.status === 409) {
+      setErr("Этот слот только что заняли. Выберите другое время.");
+      fetchSlots(specialistId, serviceId, date).then(setSlots);
+      setSlot(null);
+    } else {
+      setErr(r.data?.error ? `Ошибка: ${r.data.error}` : "Не удалось записаться. Попробуйте ещё раз.");
+    }
+  }
+
+  if (result) {
+    return (
+      <div className="success">
+        <div className="ico">✓</div>
+        <h2>Вы записаны!</h2>
+        <p>{ctx?.service?.name} · {ctx?.master?.full_name}</p>
+        <p style={{ textTransform: "capitalize" }}>{fullDateTime(result.startsAt)}</p>
+        <p>К оплате: <b>{fmtRub(result.final)}</b></p>
+        <div style={{ maxWidth: 280, margin: "24px auto 0" }}>
+          <button className="btn btn-primary" onClick={onHome}>На главную</button>
+        </div>
+      </div>
+    );
+  }
+
+  const full = price?.full_price ?? ctx?.basePrice ?? null;
+  const discount = price?.discount_amount ?? 0;
+  const finalP = price?.final_price ?? full;
+
+  return (
+    <div>
+      <button className="back-btn" onClick={onBack}>‹ Назад</button>
+      <div className="sect-title" style={{ marginTop: 0 }}>Запись</div>
+      <div className="book-sub">
+        {ctx?.service?.name ?? "…"}
+        {ctx?.master && ` · ${ctx.master.full_name}`}
+        {ctx?.service && ` · ${fmtDuration(ctx.service.duration_min)}`}
+      </div>
+
+      <div className="sect-title">Дата</div>
+      <div className="date-strip">
+        {days.map((d) => (
+          <button
+            key={d.dateStr}
+            className={`date-chip ${date === d.dateStr ? "on" : ""}`}
+            onClick={() => setDate(d.dateStr)}
+          >
+            <div className="dow">{d.dow}</div>
+            <div className="dom">{d.dom}</div>
+          </button>
+        ))}
+      </div>
+
+      <div className="sect-title">Время</div>
+      {slotsLoading ? (
+        <div className="slots-grid">
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+            <div key={i} className="skeleton" style={{ height: 42, borderRadius: 12 }} />
+          ))}
+        </div>
+      ) : slots.length === 0 ? (
+        <div className="empty">На этот день свободных слотов нет. Выберите другую дату.</div>
+      ) : (
+        <div className="slots-grid">
+          {slots.map((s) => (
+            <button
+              key={s.slot_start}
+              className={`slot ${slot === s.slot_start ? "on" : ""}`}
+              onClick={() => setSlot(s.slot_start)}
+            >
+              {slotTime(s.slot_start)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {full != null && (
+        <div className="price-card">
+          <div className="price-row muted">
+            <span>Стоимость услуги</span>
+            <span>{fmtRub(full)}</span>
+          </div>
+          {discount > 0 && (
+            <div className="price-row discount">
+              <span>Скидка{price?.promo_title ? ` · ${price.promo_title}` : ""}</span>
+              <span>−{fmtRub(discount)}</span>
+            </div>
+          )}
+          <div className="price-row total">
+            <span>К оплате</span>
+            <span>{fmtRub(finalP ?? full)}</span>
+          </div>
+        </div>
+      )}
+
+      {err && <div className="book-note" style={{ color: "#e03945" }}>{err}</div>}
+
+      <div className="book-bar">
+        <button className="btn btn-primary" disabled={!slot || booking} onClick={book}>
+          {booking ? "Записываем…" : slot ? `Записаться на ${slotTime(slot)}` : "Выберите время"}
+        </button>
+      </div>
     </div>
   );
 }

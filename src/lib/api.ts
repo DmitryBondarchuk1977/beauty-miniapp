@@ -170,3 +170,76 @@ export async function fetchServiceDetail(
 
   return { service: svc as ServiceDetail, masters };
 }
+
+/* ---------- запись ---------- */
+const API = import.meta.env.VITE_API_URL as string;
+const initData = () => window.Telegram?.WebApp?.initData ?? "";
+
+export async function fetchBookingContext(serviceId: string, specialistId: string) {
+  const [svcRes, mRes, ssRes] = await Promise.all([
+    supabase.from("services").select("name, duration_min").eq("id", serviceId).maybeSingle(),
+    supabase.from("specialists").select("full_name, photo_url").eq("id", specialistId).maybeSingle(),
+    supabase
+      .from("specialist_services")
+      .select("price")
+      .eq("service_id", serviceId)
+      .eq("specialist_id", specialistId)
+      .maybeSingle(),
+  ]);
+  return {
+    service: svcRes.data as { name: string; duration_min: number } | null,
+    master: mRes.data as { full_name: string; photo_url: string | null } | null,
+    basePrice: (ssRes.data as { price: number } | null)?.price ?? null,
+  };
+}
+
+export async function fetchSlots(specialistId: string, serviceId: string, dateStr: string) {
+  const { data, error } = await supabase.rpc("get_available_slots", {
+    p_specialist_id: specialistId,
+    p_service_id: serviceId,
+    p_date: dateStr,
+  });
+  if (error) return [];
+  return (data as { slot_start: string; slot_end: string }[]) ?? [];
+}
+
+export type PriceResult = {
+  full_price: number;
+  discount_amount: number;
+  final_price: number;
+  promo_title: string | null;
+};
+
+export async function apiPrice(
+  serviceId: string,
+  specialistId: string,
+): Promise<{ status: number; data: PriceResult | null }> {
+  try {
+    const res = await fetch(`${API}/api/price`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), service_id: serviceId, specialist_id: specialistId }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiBook(serviceId: string, specialistId: string, startsAt: string) {
+  try {
+    const res = await fetch(`${API}/api/book`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        initData: initData(),
+        service_id: serviceId,
+        specialist_id: specialistId,
+        starts_at: startsAt,
+      }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
