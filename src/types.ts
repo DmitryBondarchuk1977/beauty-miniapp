@@ -21,7 +21,7 @@ export type SpecialistCard = {
   price_from: number | null;
 };
 
-export type Chip = { id: string; name: string };
+export type Chip = { id: string; name: string; image_url: string | null };
 
 export type ServiceCard = {
   id: string;

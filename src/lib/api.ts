@@ -57,7 +57,7 @@ export async function fetchSpecialists(): Promise<SpecialistCard[]> {
   });
 }
 
-type CatRow = { id: string; parent_id: string | null; name: string };
+type CatRow = { id: string; parent_id: string | null; name: string; image_url: string | null };
 type SvcRow = {
   id: string;
   name: string;
@@ -72,7 +72,7 @@ export async function fetchCategoryView(
 ): Promise<{ chips: Chip[]; services: ServiceCard[] }> {
   const { data: catsData } = await supabase
     .from("categories")
-    .select("id, parent_id, name")
+    .select("id, parent_id, name, image_url")
     .eq("is_active", true);
   const cats = (catsData as CatRow[]) ?? [];
   const byId = new Map(cats.map((c) => [c.id, c]));
@@ -91,7 +91,7 @@ export async function fetchCategoryView(
 
   const chips: Chip[] = cats
     .filter((c) => c.parent_id === topId)
-    .map((c) => ({ id: c.id, name: c.name }));
+    .map((c) => ({ id: c.id, name: c.name, image_url: c.image_url }));
 
   // ветка верхнего уровня (прямой потомок topId) для услуги
   const branchOf = (catId: string): string | null => {

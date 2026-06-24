@@ -103,21 +103,23 @@ img { max-width: 100%; display: block; }
 /* ---- карточки мастеров ---- */
 .spec-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .spec-card {
-  background: var(--card); border-radius: var(--radius); overflow: hidden;
-  cursor: pointer; display: flex; flex-direction: column;
+  background: var(--card); border-radius: var(--radius); padding: 16px 10px 14px;
+  cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 9px;
+  text-align: center;
 }
 .spec-card .photo {
-  position: relative; width: 100%; padding-top: 100%;
+  position: relative; width: 92px; height: 92px; border-radius: 50%; overflow: hidden;
   background: linear-gradient(160deg, #f3e6ec, #faf3f7);
+  box-shadow: 0 1px 6px rgba(120, 60, 90, .12);
 }
 .spec-card .photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .spec-card .photo .initials {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 30px; font-weight: 700; color: #c98fab;
+  font-size: 28px; font-weight: 700; color: #c98fab;
 }
-.spec-card .body { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.spec-card .body { width: 100%; display: flex; flex-direction: column; gap: 5px; }
 .spec-card .name { font-size: 14px; font-weight: 600; line-height: 1.25; }
-.spec-card .meta { display: flex; align-items: center; justify-content: space-between; margin-top: auto; }
+.spec-card .meta { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .spec-card .rating { font-size: 13px; color: #f0a500; font-weight: 600; }
 .spec-card .from { font-size: 13px; color: var(--hint); }
 .spec-card .from b { color: var(--text); }

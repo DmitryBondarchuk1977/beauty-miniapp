@@ -200,12 +200,18 @@ function CategoryScreen({
       <div className="sect-title" style={{ marginTop: 0 }}>{title}</div>
 
       {chips.length > 0 && (
-        <div className="subchips">
-          <button className={`subchip ${active === "" ? "on" : ""}`} onClick={() => setActive("")}>Все</button>
+        <div className="cats">
+          <div className={`cat ${active === "" ? "on" : ""}`} onClick={() => setActive("")}>
+            <div className="circle all">Все</div>
+            <div className="lbl">Все</div>
+          </div>
           {chips.map((c) => (
-            <button key={c.id} className={`subchip ${active === c.id ? "on" : ""}`} onClick={() => setActive(c.id)}>
-              {c.name}
-            </button>
+            <div key={c.id} className={`cat ${active === c.id ? "on" : ""}`} onClick={() => setActive(c.id)}>
+              <div className="circle">
+                {c.image_url ? <img src={c.image_url} alt={c.name} /> : <span>✂️</span>}
+              </div>
+              <div className="lbl">{c.name}</div>
+            </div>
           ))}
         </div>
       )}
