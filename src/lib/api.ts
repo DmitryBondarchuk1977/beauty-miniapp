@@ -476,3 +476,35 @@ export async function apiCancelBooking(bookingId: string) {
     return { status: 0, data: null };
   }
 }
+
+/* ---------- избранное ---------- */
+export type FavSpecialist = { id: string; full_name: string; photo_url: string | null; rating: number };
+export type FavService = { id: string; name: string; duration_min: number; image_url: string | null };
+
+export async function apiFavoritesList(): Promise<{
+  status: number;
+  data: { ok: boolean; keys: string[]; specialists: FavSpecialist[]; services: FavService[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/favorites?initData=${encodeURIComponent(initData())}`);
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiToggleFavorite(
+  kind: "specialist" | "service",
+  targetId: string,
+): Promise<{ status: number; data: { ok: boolean; favorite: boolean } | null }> {
+  try {
+    const res = await fetch(`${API}/api/favorites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), kind, target_id: targetId }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

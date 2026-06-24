@@ -16,6 +16,8 @@ import {
   apiSubmitReview,
   apiMyBookings,
   apiCancelBooking,
+  apiFavoritesList,
+  apiToggleFavorite,
   type PriceResult,
   type SpecServiceItem,
   type Work,
@@ -61,6 +63,34 @@ export default function App() {
     );
   const removeFromCart = (i: number) => setCart((p) => p.filter((_, idx) => idx !== i));
 
+  // избранное
+  const [favSet, setFavSet] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    apiFavoritesList().then((r) => {
+      if (r.status === 200 && r.data?.ok) setFavSet(new Set(r.data.keys));
+    });
+  }, []);
+  const isFav = (kind: "specialist" | "service", id: string) => favSet.has(`${kind}:${id}`);
+  const toggleFav = async (kind: "specialist" | "service", id: string) => {
+    const key = `${kind}:${id}`;
+    setFavSet((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+    const r = await apiToggleFavorite(kind, id);
+    if (r.status !== 200 || !r.data) {
+      // откат при ошибке
+      setFavSet((prev) => {
+        const n = new Set(prev);
+        if (n.has(key)) n.delete(key);
+        else n.add(key);
+        return n;
+      });
+    }
+  };
+
   useEffect(() => {
     tg?.ready();
     tg?.expand();
@@ -92,9 +122,9 @@ export default function App() {
   else if (screen.name === "category")
     content = <CategoryScreen id={screen.id} title={screen.title} onNavigate={push} onBack={back} />;
   else if (screen.name === "service")
-    content = <ServiceScreen id={screen.id} onNavigate={push} onBack={back} onAddToCart={addToCart} />;
+    content = <ServiceScreen id={screen.id} onNavigate={push} onBack={back} onAddToCart={addToCart} isFav={isFav} onToggleFav={toggleFav} />;
   else if (screen.name === "specialist")
-    content = <SpecialistScreen id={screen.id} onNavigate={push} onBack={back} />;
+    content = <SpecialistScreen id={screen.id} onNavigate={push} onBack={back} isFav={isFav} onToggleFav={toggleFav} />;
   else if (screen.name === "confirm")
     content = <ConfirmScreen bookingId={screen.bookingId} onHome={() => goTab("home")} />;
   else if (screen.name === "review")
@@ -392,12 +422,14 @@ function CategoryScreen({
 
 /* ---------- SERVICE ---------- */
 function ServiceScreen({
-  id, onNavigate, onBack, onAddToCart,
+  id, onNavigate, onBack, onAddToCart, isFav, onToggleFav,
 }: {
   id: string;
   onNavigate: (s: Screen) => void;
   onBack: () => void;
   onAddToCart: (item: CartItem) => void;
+  isFav: (kind: "specialist" | "service", id: string) => boolean;
+  onToggleFav: (kind: "specialist" | "service", id: string) => void;
 }) {
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [masters, setMasters] = useState<Master[]>([]);
@@ -439,7 +471,16 @@ function ServiceScreen({
       <button className="back-btn" onClick={onBack}>‹ Назад</button>
 
       <div className="detail-hero">{service.image_url && <img src={service.image_url} alt={service.name} />}</div>
-      <h2 className="detail-title">{service.name}</h2>
+      <div className="title-row">
+        <h2 className="detail-title">{service.name}</h2>
+        <button
+          className={`fav-btn ${isFav("service", service.id) ? "on" : ""}`}
+          onClick={() => onToggleFav("service", service.id)}
+          aria-label="В избранное"
+        >
+          {isFav("service", service.id) ? "♥" : "♡"}
+        </button>
+      </div>
       <div className="detail-meta">
         <span>⏱ {fmtDuration(service.duration_min)}</span>
         <span>💰 {priceLabel}</span>
@@ -715,10 +756,14 @@ function SpecialistScreen({
   id,
   onNavigate,
   onBack,
+  isFav,
+  onToggleFav,
 }: {
   id: string;
   onNavigate: (s: Screen) => void;
   onBack: () => void;
+  isFav: (kind: "specialist" | "service", id: string) => boolean;
+  onToggleFav: (kind: "specialist" | "service", id: string) => void;
 }) {
   const [data, setData] = useState<{
     specialist: { id: string; full_name: string; photo_url: string | null; bio: string | null; experience_years: number; rating: number } | null;
@@ -762,7 +807,16 @@ function SpecialistScreen({
         <div className="sp-photo">
           {sp.photo_url ? <img src={sp.photo_url} alt={sp.full_name} /> : initials(sp.full_name)}
         </div>
-        <div className="sp-name">{sp.full_name}</div>
+        <div className="sp-name">
+          {sp.full_name}
+          <button
+            className={`fav-btn inline ${isFav("specialist", sp.id) ? "on" : ""}`}
+            onClick={() => onToggleFav("specialist", sp.id)}
+            aria-label="В избранное"
+          >
+            {isFav("specialist", sp.id) ? "♥" : "♡"}
+          </button>
+        </div>
         <div className="sp-meta">
           <span className="rating">★ {sp.rating?.toFixed(1) ?? "0.0"}</span>
           {data.reviewCount > 0 && <span>{data.reviewCount} отзывов</span>}
