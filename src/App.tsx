@@ -10,7 +10,11 @@ import {
   apiPrice,
   apiBook,
   apiConfirm,
+  fetchSpecialistDetail,
   type PriceResult,
+  type SpecServiceItem,
+  type Work,
+  type Review,
 } from "./lib/api";
 import type {
   Category,
@@ -62,7 +66,7 @@ export default function App() {
   if (screen.name === "service")
     return <ServiceScreen id={screen.id} onNavigate={push} onBack={back} />;
   if (screen.name === "specialist")
-    return <Stub title="Мастер" onBack={back} />;
+    return <SpecialistScreen id={screen.id} onNavigate={push} onBack={back} />;
   if (screen.name === "confirm")
     return (
       <ConfirmScreen
@@ -538,6 +542,140 @@ function BookingScreen({
           {booking ? "Записываем…" : slot ? `Записаться на ${slotTime(slot)}` : "Выберите время"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ---------- SPECIALIST ---------- */
+function ruYears(n: number) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  let w = "лет";
+  if (m10 === 1 && m100 !== 11) w = "год";
+  else if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) w = "года";
+  return `${n} ${w}`;
+}
+function stars(n: number) {
+  const r = Math.round(n);
+  return "★★★★★".slice(0, r) + "☆☆☆☆☆".slice(0, 5 - r);
+}
+function reviewDate(iso: string) {
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(new Date(iso));
+}
+
+function SpecialistScreen({
+  id,
+  onNavigate,
+  onBack,
+}: {
+  id: string;
+  onNavigate: (s: Screen) => void;
+  onBack: () => void;
+}) {
+  const [data, setData] = useState<{
+    specialist: { id: string; full_name: string; photo_url: string | null; bio: string | null; experience_years: number; rating: number } | null;
+    services: SpecServiceItem[];
+    works: Work[];
+    reviews: Review[];
+    reviewCount: number;
+  } | null>(null);
+
+  useEffect(() => {
+    fetchSpecialistDetail(id).then(setData);
+  }, [id]);
+
+  if (!data) {
+    return (
+      <div>
+        <button className="back-btn" onClick={onBack}>‹ Назад</button>
+        <div className="sp-head">
+          <div className="skeleton sp-photo" />
+          <div className="skeleton" style={{ height: 24, width: 160, margin: "0 auto" }} />
+        </div>
+      </div>
+    );
+  }
+
+  const sp = data.specialist;
+  if (!sp) {
+    return (
+      <div>
+        <button className="back-btn" onClick={onBack}>‹ Назад</button>
+        <div className="empty">Мастер не найден.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button className="back-btn" onClick={onBack}>‹ Назад</button>
+
+      <div className="sp-head">
+        <div className="sp-photo">
+          {sp.photo_url ? <img src={sp.photo_url} alt={sp.full_name} /> : initials(sp.full_name)}
+        </div>
+        <div className="sp-name">{sp.full_name}</div>
+        <div className="sp-meta">
+          <span className="rating">★ {sp.rating?.toFixed(1) ?? "0.0"}</span>
+          {data.reviewCount > 0 && <span>{data.reviewCount} отзывов</span>}
+          {sp.experience_years > 0 && <span>опыт {ruYears(sp.experience_years)}</span>}
+        </div>
+        {sp.bio && <p className="sp-bio">{sp.bio}</p>}
+      </div>
+
+      <div className="sect-title">Услуги</div>
+      {data.services.length === 0 ? (
+        <div className="empty">У мастера пока нет услуг.</div>
+      ) : (
+        data.services.map((s) => (
+          <div
+            key={s.id}
+            className="msvc-row"
+            onClick={() => onNavigate({ name: "booking", serviceId: s.id, specialistId: id })}
+          >
+            <div>
+              <div className="nm">{s.name}</div>
+              <div className="du">{fmtDuration(s.duration_min)}</div>
+            </div>
+            <div className="pr">
+              {fmtRub(s.price)}
+              <small>записаться ›</small>
+            </div>
+          </div>
+        ))
+      )}
+
+      {data.works.length > 0 && (
+        <>
+          <div className="sect-title">Работы</div>
+          <div className="works-strip">
+            {data.works.map((w, i) => (
+              <div className="work" key={i}>
+                <img src={w.image_url} alt={w.caption ?? ""} />
+                {w.caption && <div className="cap">{w.caption}</div>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {data.reviews.length > 0 && (
+        <>
+          <div className="sect-title">Отзывы</div>
+          {data.reviews.map((r, i) => (
+            <div className="review-card" key={i}>
+              <div className="review-top">
+                <span className="review-stars">{stars(r.rating)}</span>
+                <span className="review-date">{reviewDate(r.created_at)}</span>
+              </div>
+              {r.comment && <p className="review-text">{r.comment}</p>}
+              <div className="review-who">
+                {r.client_name}{r.service_name ? ` · ${r.service_name}` : ""}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

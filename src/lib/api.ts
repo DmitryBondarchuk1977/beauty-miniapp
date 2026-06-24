@@ -256,3 +256,92 @@ export async function apiConfirm(bookingId: string) {
     return { status: 0, data: null };
   }
 }
+
+/* ---------- экран мастера ---------- */
+export type SpecialistFull = {
+  id: string;
+  full_name: string;
+  photo_url: string | null;
+  bio: string | null;
+  experience_years: number;
+  rating: number;
+};
+export type SpecServiceItem = { id: string; name: string; duration_min: number; price: number };
+export type Work = { image_url: string; caption: string | null };
+export type Review = {
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  client_name: string;
+  service_name: string | null;
+};
+
+type SSItem = {
+  price: number;
+  service: { id: string; name: string; duration_min: number; is_active: boolean } | null;
+};
+type RevRow = {
+  specialist_rating: number;
+  comment: string | null;
+  created_at: string;
+  client: { first_name: string | null } | null;
+  service: { name: string } | null;
+};
+
+export async function fetchSpecialistDetail(id: string): Promise<{
+  specialist: SpecialistFull | null;
+  services: SpecServiceItem[];
+  works: Work[];
+  reviews: Review[];
+  reviewCount: number;
+}> {
+  const [spRes, ssRes, wRes, rRes] = await Promise.all([
+    supabase
+      .from("specialists")
+      .select("id, full_name, photo_url, bio, experience_years, rating")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("specialist_services")
+      .select("price, service:services ( id, name, duration_min, is_active )")
+      .eq("specialist_id", id),
+    supabase
+      .from("specialist_works")
+      .select("image_url, caption")
+      .eq("specialist_id", id)
+      .order("sort_order"),
+    supabase
+      .from("reviews")
+      .select("specialist_rating, comment, created_at, client:users ( first_name ), service:services ( name )")
+      .eq("specialist_id", id)
+      .eq("status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  const services: SpecServiceItem[] = ((ssRes.data as unknown as SSItem[]) ?? [])
+    .filter((r) => r.service?.is_active)
+    .map((r) => ({
+      id: r.service!.id,
+      name: r.service!.name,
+      duration_min: r.service!.duration_min,
+      price: r.price,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+
+  const reviews: Review[] = ((rRes.data as unknown as RevRow[]) ?? []).map((r) => ({
+    rating: r.specialist_rating,
+    comment: r.comment,
+    created_at: r.created_at,
+    client_name: r.client?.first_name ?? "Гость",
+    service_name: r.service?.name ?? null,
+  }));
+
+  return {
+    specialist: (spRes.data as SpecialistFull) ?? null,
+    services,
+    works: (wRes.data as Work[]) ?? [],
+    reviews,
+    reviewCount: reviews.length,
+  };
+}
