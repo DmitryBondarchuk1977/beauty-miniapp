@@ -14,11 +14,14 @@ import {
   apiPriceCart,
   apiReviewContext,
   apiSubmitReview,
+  apiMyBookings,
+  apiCancelBooking,
   type PriceResult,
   type SpecServiceItem,
   type Work,
   type Review,
   type CartPrice,
+  type MyBooking,
 } from "./lib/api";
 import type {
   Category,
@@ -39,8 +42,10 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const cid = params.get("confirm");
     const rid = params.get("review");
+    const xid = params.get("cancel");
     if (cid) return [{ name: "home" }, { name: "confirm", bookingId: cid }];
     if (rid) return [{ name: "home" }, { name: "review", bookingId: rid }];
+    if (xid) return [{ name: "home" }, { name: "cancel", bookingId: xid }];
     return [{ name: "home" }];
   });
   const screen = stack[stack.length - 1];
@@ -76,8 +81,14 @@ export default function App() {
     else bb.hide();
   }, [stack.length]);
 
+  const goTab = (name: "home" | "bookings" | "cart" | "profile") => setStack([{ name }]);
+
   let content: ReactNode;
   if (screen.name === "home") content = <Home onNavigate={push} />;
+  else if (screen.name === "bookings")
+    content = <BookingsScreen onOpenReview={(id) => push({ name: "review", bookingId: id })} onOpenCancel={(id) => push({ name: "cancel", bookingId: id })} onBrowse={() => goTab("home")} />;
+  else if (screen.name === "profile")
+    content = <ProfileScreen />;
   else if (screen.name === "category")
     content = <CategoryScreen id={screen.id} title={screen.title} onNavigate={push} onBack={back} />;
   else if (screen.name === "service")
@@ -85,39 +96,104 @@ export default function App() {
   else if (screen.name === "specialist")
     content = <SpecialistScreen id={screen.id} onNavigate={push} onBack={back} />;
   else if (screen.name === "confirm")
-    content = <ConfirmScreen bookingId={screen.bookingId} onHome={() => setStack([{ name: "home" }])} />;
+    content = <ConfirmScreen bookingId={screen.bookingId} onHome={() => goTab("home")} />;
   else if (screen.name === "review")
-    content = <ReviewScreen bookingId={screen.bookingId} onHome={() => setStack([{ name: "home" }])} />;
+    content = <ReviewScreen bookingId={screen.bookingId} onHome={() => goTab("bookings")} />;
+  else if (screen.name === "cancel")
+    content = <CancelScreen bookingId={screen.bookingId} onDone={() => goTab("bookings")} onBack={back} />;
   else if (screen.name === "cart")
-    content = (
-      <CartScreen
-        cart={cart}
-        onRemove={removeFromCart}
-        onBack={back}
-        onAdd={() => setStack([{ name: "home" }])}
-      />
-    );
+    content = <CartScreen cart={cart} onRemove={removeFromCart} onAdd={() => goTab("home")} />;
   else
     content = (
       <BookingScreen
         serviceId={screen.serviceId}
         specialistId={screen.specialistId}
         onBack={back}
-        onHome={() => setStack([{ name: "home" }])}
+        onHome={() => goTab("home")}
       />
     );
 
-  const showFab = cart.length > 0 && screen.name !== "cart" && screen.name !== "confirm" && screen.name !== "review";
+  const tabRoots = ["home", "bookings", "cart", "profile"];
+  const showTabBar = stack.length === 1 && tabRoots.includes(screen.name);
+  const activeTab = stack[0].name;
 
   return (
-    <>
+    <div className={showTabBar ? "app has-tabbar" : "app"}>
       {content}
-      {showFab && (
-        <button className="cart-fab" onClick={() => push({ name: "cart" })}>
-          🛒 Корзина · {cart.length}
-        </button>
+      {showTabBar && (
+        <TabBar active={activeTab} cartCount={cart.length} onTab={goTab} />
       )}
-    </>
+    </div>
+  );
+}
+
+/* ---------- TAB BAR ---------- */
+function TabBar({
+  active,
+  cartCount,
+  onTab,
+}: {
+  active: string;
+  cartCount: number;
+  onTab: (n: "home" | "bookings" | "cart" | "profile") => void;
+}) {
+  const tabs = [
+    { key: "home" as const, label: "Главная", icon: IconHome },
+    { key: "bookings" as const, label: "Записи", icon: IconCalendar },
+    { key: "cart" as const, label: "Корзина", icon: IconBag },
+    { key: "profile" as const, label: "Профиль", icon: IconUser },
+  ];
+  return (
+    <nav className="tabbar">
+      {tabs.map((t) => {
+        const Icon = t.icon;
+        const on = active === t.key;
+        return (
+          <button key={t.key} className={`tab ${on ? "on" : ""}`} onClick={() => onTab(t.key)}>
+            <span className="tab-ic">
+              <Icon />
+              {t.key === "cart" && cartCount > 0 && <span className="tab-badge">{cartCount}</span>}
+            </span>
+            <span className="tab-lb">{t.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* SVG-иконки (inline, без зависимостей — работают и на старых вебвью) */
+function IconHome() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9" />
+      <path d="M9.5 20v-5h5v5" />
+    </svg>
+  );
+}
+function IconCalendar() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.5" y="5" width="17" height="16" rx="2" />
+      <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
+    </svg>
+  );
+}
+function IconBag() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 8h12l-1 12H7L6 8Z" />
+      <path d="M9 8a3 3 0 0 1 6 0" />
+    </svg>
+  );
+}
+function IconUser() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8.5" r="3.5" />
+      <path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" />
+    </svg>
   );
 }
 
@@ -747,16 +823,213 @@ function SpecialistScreen({
   );
 }
 
+/* ---------- BOOKINGS (мои записи) ---------- */
+function statusLabel(s: string) {
+  const map: Record<string, string> = {
+    new: "Новая",
+    confirmed: "Подтверждена",
+    paid: "Оплачена",
+    completed: "Завершена",
+    cancelled: "Отменена",
+    no_show: "Не пришёл",
+  };
+  return map[s] ?? s;
+}
+
+function BookingsScreen({
+  onOpenReview,
+  onOpenCancel,
+  onBrowse,
+}: {
+  onOpenReview: (id: string) => void;
+  onOpenCancel: (id: string) => void;
+  onBrowse: () => void;
+}) {
+  const [data, setData] = useState<{ upcoming: MyBooking[]; past: MyBooking[] } | null>(null);
+  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    apiMyBookings().then((r) => {
+      if (r.status === 200 && r.data?.ok) {
+        setData({ upcoming: r.data.upcoming, past: r.data.past });
+        setState("ok");
+      } else if (r.status === 401) {
+        setMsg("Записи доступны только из Telegram.");
+        setState("error");
+      } else {
+        setMsg("Не удалось загрузить записи.");
+        setState("error");
+      }
+    });
+  }, []);
+
+  if (state === "loading") {
+    return (
+      <div>
+        <div className="sect-title" style={{ marginTop: 0 }}>Мои записи</div>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="skeleton" style={{ height: 84, borderRadius: 16, marginBottom: 10 }} />
+        ))}
+      </div>
+    );
+  }
+  if (state === "error") {
+    return (
+      <div>
+        <div className="sect-title" style={{ marginTop: 0 }}>Мои записи</div>
+        <div className="empty">{msg}</div>
+      </div>
+    );
+  }
+
+  const empty = !data || (data.upcoming.length === 0 && data.past.length === 0);
+  if (empty) {
+    return (
+      <div>
+        <div className="sect-title" style={{ marginTop: 0 }}>Мои записи</div>
+        <div className="empty">У вас пока нет записей.</div>
+        <div style={{ maxWidth: 320, margin: "16px auto 0" }}>
+          <button className="btn btn-primary" onClick={onBrowse}>Выбрать услугу</button>
+        </div>
+      </div>
+    );
+  }
+
+  const card = (b: MyBooking, upcoming: boolean) => (
+    <div className={`bk-card ${b.status === "cancelled" || b.status === "no_show" ? "off" : ""}`} key={b.id}>
+      <div className="bk-top">
+        <div className="bk-svc">{b.service}</div>
+        <span className={`bk-status s-${b.status}`}>{statusLabel(b.status)}</span>
+      </div>
+      <div className="bk-sub">{b.specialist}</div>
+      <div className="bk-when" style={{ textTransform: "capitalize" }}>{fullDateTime(b.starts_at)}</div>
+      {upcoming && b.can_cancel && (
+        <button className="mini-btn ghost bk-act" onClick={() => onOpenCancel(b.id)}>Отменить запись</button>
+      )}
+      {!upcoming && b.can_review && (
+        b.reviewed ? (
+          <div className="bk-note">Отзыв оставлен ✓</div>
+        ) : (
+          <button className="mini-btn bk-act" onClick={() => onOpenReview(b.id)}>Оставить отзыв</button>
+        )
+      )}
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="sect-title" style={{ marginTop: 0 }}>Мои записи</div>
+      {data!.upcoming.length > 0 && (
+        <>
+          <div className="bk-group">Предстоящие</div>
+          {data!.upcoming.map((b) => card(b, true))}
+        </>
+      )}
+      {data!.past.length > 0 && (
+        <>
+          <div className="bk-group">Прошедшие</div>
+          {data!.past.map((b) => card(b, false))}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------- CANCEL (отмена записи с подтверждением) ---------- */
+function CancelScreen({
+  bookingId,
+  onDone,
+  onBack,
+}: {
+  bookingId: string;
+  onDone: () => void;
+  onBack: () => void;
+}) {
+  const [state, setState] = useState<"ask" | "sending" | "done" | "error">("ask");
+  const [msg, setMsg] = useState("");
+
+  async function doCancel() {
+    setState("sending");
+    const r = await apiCancelBooking(bookingId);
+    if (r.status === 200 && r.data?.ok) setState("done");
+    else {
+      if (r.status === 401) setMsg("Отмена доступна только из Telegram.");
+      else if (r.data?.error === "too_late") setMsg("Отменить можно не позже чем за 3 часа до визита. Позвоните в салон.");
+      else if (r.data?.error === "not_cancelable") setMsg("Эту запись уже нельзя отменить.");
+      else if (r.status === 403) setMsg("Эта запись принадлежит другому пользователю.");
+      else setMsg("Не удалось отменить. Попробуйте позже.");
+      setState("error");
+    }
+  }
+
+  if (state === "done") {
+    return (
+      <div className="success">
+        <div className="ico">✓</div>
+        <h2>Запись отменена</h2>
+        <p>Слот освобождён. Будем рады видеть вас снова.</p>
+        <div style={{ maxWidth: 280, margin: "24px auto 0" }}>
+          <button className="btn btn-primary" onClick={onDone}>К моим записям</button>
+        </div>
+      </div>
+    );
+  }
+  if (state === "error") {
+    return (
+      <div className="success">
+        <div className="ico" style={{ background: "#fdeaea", color: "#e03945" }}>!</div>
+        <h2>Не получилось</h2>
+        <p>{msg}</p>
+        <div style={{ maxWidth: 280, margin: "24px auto 0" }}>
+          <button className="btn btn-primary" onClick={onDone}>К моим записям</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="success">
+      <div className="ico" style={{ background: "#fff4e5", color: "#e08a00" }}>?</div>
+      <h2>Отменить запись?</h2>
+      <p>Это действие нельзя отменить. Слот станет свободным для других.</p>
+      <div style={{ maxWidth: 320, margin: "24px auto 0", display: "flex", flexDirection: "column", gap: 10 }}>
+        <button className="btn btn-primary" disabled={state === "sending"} onClick={doCancel}>
+          {state === "sending" ? "Отменяем…" : "Да, отменить"}
+        </button>
+        <button className="btn btn-ghost" onClick={onBack}>Нет, оставить</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- PROFILE (заглушка, наполним далее) ---------- */
+function ProfileScreen() {
+  const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const name = [u?.first_name, u?.last_name].filter(Boolean).join(" ") || "Гость";
+  return (
+    <div>
+      <div className="sect-title" style={{ marginTop: 0 }}>Профиль</div>
+      <div className="sp-head">
+        <div className="sp-photo">
+          {u?.photo_url ? <img src={u.photo_url} alt={name} /> : initials(name)}
+        </div>
+        <div className="sp-name">{name}</div>
+        {u?.username && <div className="sp-meta"><span>@{u.username}</span></div>}
+      </div>
+      <div className="empty">Здесь скоро появятся ваши отзывы и избранное.</div>
+    </div>
+  );
+}
+
 /* ---------- CART ---------- */
 function CartScreen({
   cart,
   onRemove,
-  onBack,
   onAdd,
 }: {
   cart: CartItem[];
   onRemove: (i: number) => void;
-  onBack: () => void;
   onAdd: () => void;
 }) {
   const [price, setPrice] = useState<CartPrice | null>(null);
@@ -774,7 +1047,6 @@ function CartScreen({
   if (cart.length === 0) {
     return (
       <div>
-        <button className="back-btn" onClick={onBack}>‹ Назад</button>
         <div className="sect-title" style={{ marginTop: 0 }}>Корзина</div>
         <div className="empty">В корзине пусто. Добавьте услуги, чтобы записаться на несколько процедур сразу.</div>
         <div style={{ maxWidth: 320, margin: "16px auto 0" }}>
@@ -790,7 +1062,6 @@ function CartScreen({
 
   return (
     <div>
-      <button className="back-btn" onClick={onBack}>‹ Назад</button>
       <div className="sect-title" style={{ marginTop: 0 }}>Корзина</div>
 
       {cart.map((c, i) => {

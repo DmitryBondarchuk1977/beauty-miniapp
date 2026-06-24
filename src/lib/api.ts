@@ -434,3 +434,45 @@ export async function apiSubmitReview(
     return { status: 0, data: null };
   }
 }
+
+/* ---------- мои записи / отмена ---------- */
+export type MyBooking = {
+  id: string;
+  status: string;
+  starts_at: string;
+  ends_at: string;
+  service: string;
+  specialist: string;
+  can_cancel: boolean;
+  can_review: boolean;
+  reviewed: boolean;
+};
+
+export async function apiMyBookings(): Promise<{
+  status: number;
+  data: { ok: boolean; upcoming: MyBooking[]; past: MyBooking[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/my-bookings`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData() }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiCancelBooking(bookingId: string) {
+  try {
+    const res = await fetch(`${API}/api/cancel-booking`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), booking_id: bookingId }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

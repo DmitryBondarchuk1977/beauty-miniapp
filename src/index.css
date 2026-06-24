@@ -278,14 +278,6 @@ img { max-width: 100%; display: block; }
 .review-text { font-size: 14px; margin: 6px 0 0; }
 .review-who { font-size: 12px; color: var(--hint); margin-top: 6px; }
 
-/* ---- корзина: плавающая кнопка ---- */
-.cart-fab {
-  position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  background: var(--accent); color: #fff; border: none; cursor: pointer;
-  padding: 13px 22px; border-radius: 999px; font-size: 15px; font-weight: 700;
-  box-shadow: 0 6px 20px rgba(194, 85, 122, .4); z-index: 50;
-}
 
 /* ---- кнопки в строке мастера ---- */
 .row-btns { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; align-items: flex-end; }
@@ -328,3 +320,44 @@ img { max-width: 100%; display: block; }
   padding: 12px; font: inherit; font-size: 15px; resize: vertical; background: var(--card); color: var(--text);
 }
 .review-textarea:focus { outline: none; border-color: var(--accent); }
+
+/* ---- таб-бар ---- */
+.app { min-height: 100vh; }
+.app.has-tabbar { padding-bottom: 76px; }
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  display: flex; background: var(--bg);
+  border-top: 1px solid rgba(0, 0, 0, .07);
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, .04);
+}
+.tab {
+  flex: 1; border: none; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 9px 0 7px; color: var(--hint);
+}
+.tab.on { color: var(--accent); }
+.tab-ic { position: relative; display: flex; }
+.tab-lb { font-size: 11px; font-weight: 600; }
+.tab-badge {
+  position: absolute; top: -5px; right: -8px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 8px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+}
+
+/* ---- мои записи ---- */
+.bk-group { font-size: 13px; font-weight: 700; color: var(--hint); text-transform: uppercase; letter-spacing: .5px; margin: 16px 2px 8px; }
+.bk-card { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+.bk-card.off { opacity: .6; }
+.bk-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bk-svc { font-size: 16px; font-weight: 700; }
+.bk-sub { font-size: 14px; color: var(--hint); margin-top: 2px; }
+.bk-when { font-size: 14px; margin-top: 6px; }
+.bk-act { margin-top: 12px; }
+.bk-note { margin-top: 12px; font-size: 13px; color: #1a9e5e; font-weight: 600; }
+.bk-status { flex: none; font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: rgba(0,0,0,.06); color: var(--hint); }
+.bk-status.s-new { background: #eef3ff; color: #3b6cff; }
+.bk-status.s-confirmed { background: #e9f8ef; color: #1a9e5e; }
+.bk-status.s-paid { background: #e9f8ef; color: #1a9e5e; }
+.bk-status.s-completed { background: #f0ecff; color: #7a5bd0; }
+.bk-status.s-cancelled, .bk-status.s-no_show { background: #fdeaea; color: #e03945; }

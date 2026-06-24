@@ -50,11 +50,14 @@ export type Master = {
 
 export type Screen =
   | { name: "home" }
+  | { name: "bookings" }
+  | { name: "profile" }
   | { name: "category"; id: string; title: string }
   | { name: "service"; id: string }
   | { name: "specialist"; id: string }
   | { name: "confirm"; bookingId: string }
   | { name: "review"; bookingId: string }
+  | { name: "cancel"; bookingId: string }
   | { name: "cart" }
   | { name: "booking"; serviceId: string; specialistId: string };
 
