@@ -313,3 +313,18 @@ img { max-width: 100%; display: block; }
   background: rgba(0, 0, 0, .06); color: var(--hint); font-size: 18px; line-height: 1;
 }
 .btn-ghost { background: var(--card); color: var(--accent); border: 1px solid var(--accent); }
+
+/* ---- экран отзыва ---- */
+.review-block { margin: 16px 0; }
+.review-label { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.stars-input { display: flex; gap: 6px; }
+.stars-input .star {
+  border: none; background: none; cursor: pointer; padding: 2px;
+  font-size: 34px; line-height: 1; color: #d9d2d6;
+}
+.stars-input .star.on { color: #f0a500; }
+.review-textarea {
+  width: 100%; box-sizing: border-box; border: 1px solid rgba(0, 0, 0, .12); border-radius: 12px;
+  padding: 12px; font: inherit; font-size: 15px; resize: vertical; background: var(--card); color: var(--text);
+}
+.review-textarea:focus { outline: none; border-color: var(--accent); }

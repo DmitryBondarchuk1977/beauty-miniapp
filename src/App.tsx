@@ -12,6 +12,8 @@ import {
   apiConfirm,
   fetchSpecialistDetail,
   apiPriceCart,
+  apiReviewContext,
+  apiSubmitReview,
   type PriceResult,
   type SpecServiceItem,
   type Work,
@@ -34,10 +36,12 @@ const tg = window.Telegram?.WebApp;
 
 export default function App() {
   const [stack, setStack] = useState<Screen[]>(() => {
-    const cid = new URLSearchParams(window.location.search).get("confirm");
-    return cid
-      ? [{ name: "home" }, { name: "confirm", bookingId: cid }]
-      : [{ name: "home" }];
+    const params = new URLSearchParams(window.location.search);
+    const cid = params.get("confirm");
+    const rid = params.get("review");
+    if (cid) return [{ name: "home" }, { name: "confirm", bookingId: cid }];
+    if (rid) return [{ name: "home" }, { name: "review", bookingId: rid }];
+    return [{ name: "home" }];
   });
   const screen = stack[stack.length - 1];
   const push = (s: Screen) => setStack((p) => [...p, s]);
@@ -82,6 +86,8 @@ export default function App() {
     content = <SpecialistScreen id={screen.id} onNavigate={push} onBack={back} />;
   else if (screen.name === "confirm")
     content = <ConfirmScreen bookingId={screen.bookingId} onHome={() => setStack([{ name: "home" }])} />;
+  else if (screen.name === "review")
+    content = <ReviewScreen bookingId={screen.bookingId} onHome={() => setStack([{ name: "home" }])} />;
   else if (screen.name === "cart")
     content = (
       <CartScreen
@@ -101,7 +107,7 @@ export default function App() {
       />
     );
 
-  const showFab = cart.length > 0 && screen.name !== "cart" && screen.name !== "confirm";
+  const showFab = cart.length > 0 && screen.name !== "cart" && screen.name !== "confirm" && screen.name !== "review";
 
   return (
     <>
@@ -860,6 +866,152 @@ function CartScreen({
         {soon && (
           <div className="book-note">Выбор времени по каждой позиции добавляем следующим шагом.</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- REVIEW ---------- */
+function StarInput({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <div className="stars-input">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          className={`star ${n <= value ? "on" : ""}`}
+          onClick={() => onChange(n)}
+          aria-label={`${n}`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ReviewScreen({ bookingId, onHome }: { bookingId: string; onHome: () => void }) {
+  const [state, setState] = useState<"loading" | "form" | "done" | "error">("loading");
+  const [ctx, setCtx] = useState<{ service: string | null; specialist: string | null } | null>(null);
+  const [spRating, setSpRating] = useState(0);
+  const [svRating, setSvRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [msg, setMsg] = useState("");
+  const [sending, setSending] = useState(false);
+  const [alreadyApproved, setAlreadyApproved] = useState(false);
+
+  useEffect(() => {
+    apiReviewContext(bookingId).then((r) => {
+      if (r.status === 200 && r.data?.ok) {
+        setCtx({ service: r.data.service, specialist: r.data.specialist });
+        if (r.data.existing) {
+          setSpRating(r.data.existing.specialist_rating);
+          setSvRating(r.data.existing.service_rating);
+          setComment(r.data.existing.comment ?? "");
+          if (r.data.existing.status === "approved") setAlreadyApproved(true);
+        }
+        setState("form");
+      } else if (r.status === 401) {
+        setMsg("Отзыв можно оставить только из Telegram.");
+        setState("error");
+      } else if (r.status === 403) {
+        setMsg("Эта запись принадлежит другому пользователю.");
+        setState("error");
+      } else {
+        setMsg("Запись не найдена.");
+        setState("error");
+      }
+    });
+  }, [bookingId]);
+
+  async function submit() {
+    if (spRating < 1 || svRating < 1) {
+      setMsg("Поставьте оценку мастеру и услуге.");
+      return;
+    }
+    setSending(true);
+    setMsg("");
+    const r = await apiSubmitReview(bookingId, spRating, svRating, comment);
+    setSending(false);
+    if (r.status === 200 && r.data?.ok) setState("done");
+    else if (r.status === 400 && r.data?.error === "too_early") setMsg("Отзыв можно оставить после визита.");
+    else setMsg("Не удалось отправить отзыв. Попробуйте позже.");
+  }
+
+  if (state === "loading") {
+    return (
+      <div className="success">
+        <div className="skeleton ico" style={{ background: "var(--card)" }} />
+        <p>Загружаем…</p>
+      </div>
+    );
+  }
+  if (state === "error") {
+    return (
+      <div className="success">
+        <div className="ico" style={{ background: "#fdeaea", color: "#e03945" }}>!</div>
+        <h2>Не получилось</h2>
+        <p>{msg}</p>
+        <div style={{ maxWidth: 280, margin: "24px auto 0" }}>
+          <button className="btn btn-primary" onClick={onHome}>На главную</button>
+        </div>
+      </div>
+    );
+  }
+  if (state === "done") {
+    return (
+      <div className="success">
+        <div className="ico">✓</div>
+        <h2>Спасибо за отзыв!</h2>
+        <p>Он появится после проверки модератором.</p>
+        <div style={{ maxWidth: 280, margin: "24px auto 0" }}>
+          <button className="btn btn-primary" onClick={onHome}>На главную</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="sect-title" style={{ marginTop: 0 }}>Ваш отзыв</div>
+      <div className="book-sub">
+        {ctx?.service}
+        {ctx?.specialist && ` · ${ctx.specialist}`}
+      </div>
+
+      {alreadyApproved && (
+        <div className="book-note" style={{ textAlign: "left" }}>
+          Вы уже оставляли отзыв. Можно изменить — он снова уйдёт на проверку.
+        </div>
+      )}
+
+      <div className="review-block">
+        <div className="review-label">Мастер{ctx?.specialist ? ` · ${ctx.specialist}` : ""}</div>
+        <StarInput value={spRating} onChange={setSpRating} />
+      </div>
+      <div className="review-block">
+        <div className="review-label">Услуга{ctx?.service ? ` · ${ctx.service}` : ""}</div>
+        <StarInput value={svRating} onChange={setSvRating} />
+      </div>
+
+      <div className="review-block">
+        <div className="review-label">Комментарий (необязательно)</div>
+        <textarea
+          className="review-textarea"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Поделитесь впечатлением…"
+          maxLength={1000}
+          rows={4}
+        />
+      </div>
+
+      {msg && <div className="book-note" style={{ color: "#e03945" }}>{msg}</div>}
+
+      <div className="book-bar">
+        <button className="btn btn-primary" disabled={sending} onClick={submit}>
+          {sending ? "Отправляем…" : "Отправить отзыв"}
+        </button>
       </div>
     </div>
   );

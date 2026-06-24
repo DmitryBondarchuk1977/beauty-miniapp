@@ -385,3 +385,52 @@ export async function apiPriceCart(
     return { status: 0, data: null };
   }
 }
+
+/* ---------- отзыв ---------- */
+export type ReviewContext = {
+  service: string | null;
+  specialist: string | null;
+  existing: {
+    specialist_rating: number;
+    service_rating: number;
+    comment: string | null;
+    status: string;
+  } | null;
+};
+
+export async function apiReviewContext(
+  bookingId: string,
+): Promise<{ status: number; data: (ReviewContext & { ok: boolean }) | null }> {
+  try {
+    const res = await fetch(
+      `${API}/api/review?booking_id=${encodeURIComponent(bookingId)}&initData=${encodeURIComponent(initData())}`,
+    );
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiSubmitReview(
+  bookingId: string,
+  specialistRating: number,
+  serviceRating: number,
+  comment: string,
+) {
+  try {
+    const res = await fetch(`${API}/api/review`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        initData: initData(),
+        booking_id: bookingId,
+        specialist_rating: specialistRating,
+        service_rating: serviceRating,
+        comment,
+      }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

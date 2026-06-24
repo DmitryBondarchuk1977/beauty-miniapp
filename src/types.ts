@@ -54,6 +54,7 @@ export type Screen =
   | { name: "service"; id: string }
   | { name: "specialist"; id: string }
   | { name: "confirm"; bookingId: string }
+  | { name: "review"; bookingId: string }
   | { name: "cart" }
   | { name: "booking"; serviceId: string; specialistId: string };
 
