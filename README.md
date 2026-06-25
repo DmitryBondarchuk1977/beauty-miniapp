@@ -75,6 +75,54 @@
 
 ---
 
+## 📱 Как это выглядит (Telegram Mini App)
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/01_home.png" width="220"><br><sub><b>Главная — категории и акции</b></sub></td>
+    <td align="center"><img src="docs/screenshots/02_specialists.png" width="220"><br><sub><b>Наши специалисты</b></sub></td>
+    <td align="center"><img src="docs/screenshots/03_category.png" width="220"><br><sub><b>Категория и услуги</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/04_service.png" width="220"><br><sub><b>Услуга — выбор мастера</b></sub></td>
+    <td align="center"><img src="docs/screenshots/05_booking.png" width="220"><br><sub><b>Запись — дата, время, цена</b></sub></td>
+    <td align="center"><img src="docs/screenshots/06_master.png" width="220"><br><sub><b>Карточка мастера</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/07_cart.png" width="220"><br><sub><b>Корзина и подарок</b></sub></td>
+    <td align="center"><img src="docs/screenshots/08_profile.png" width="220"><br><sub><b>Профиль</b></sub></td>
+    <td align="center"><img src="docs/screenshots/09_reviews.png" width="220"><br><sub><b>Мои отзывы</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="3"><img src="docs/screenshots/10_notifications.png" width="220"><br><sub><b>Умные уведомления в Telegram</b></sub></td>
+  </tr>
+</table>
+
+---
+
+## 🖥️ Админ-панель салона (CRM)
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/crm_1_orders.png" width="330"><br><sub><b>Заказы — лента заявок в реальном времени</b></sub></td>
+    <td align="center"><img src="docs/screenshots/crm_2_order.png" width="330"><br><sub><b>Карточка заказа со сменой статуса</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/crm_3_analytics.png" width="330"><br><sub><b>Аналитика — выручка, мастера, услуги, акции</b></sub></td>
+    <td align="center"><img src="docs/screenshots/crm_4_specialists.png" width="330"><br><sub><b>Специалисты салона</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/crm_5_schedule.png" width="330"><br><sub><b>Расписание мастера и перерывы</b></sub></td>
+    <td align="center"><img src="docs/screenshots/crm_6_services.png" width="330"><br><sub><b>Дерево категорий и услуг</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/crm_7_promos.png" width="330"><br><sub><b>Акции: скидки и комплексы с подарками</b></sub></td>
+    <td align="center"><img src="docs/screenshots/crm_8_clients.png" width="330"><br><sub><b>База клиентов с историей и суммами</b></sub></td>
+  </tr>
+</table>
+
+---
+
 ## 🔧 Как это устроено
 
 ```mermaid
