@@ -558,3 +558,28 @@ export async function fetchServiceMasters(serviceId: string): Promise<ServiceMas
     }))
     .sort((a, b) => b.rating - a.rating);
 }
+
+/* ---------- оформление заказа (корзина) ---------- */
+export type BookCartItem = {
+  service_id: string;
+  specialist_id: string;
+  starts_at: string;
+  is_gift: boolean;
+  gift_discount_percent: number;
+};
+
+export async function apiBookCart(items: BookCartItem[]): Promise<{
+  status: number;
+  data: { ok: boolean; order_id?: string; busy?: number[]; error?: string } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/book-cart`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), items }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

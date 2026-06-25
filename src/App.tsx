@@ -20,6 +20,7 @@ import {
   apiToggleFavorite,
   apiMyReviews,
   fetchServiceMasters,
+  apiBookCart,
   type ServiceMaster,
   type PriceResult,
   type SpecServiceItem,
@@ -152,7 +153,7 @@ export default function App() {
   else if (screen.name === "cart")
     content = <CartScreen cart={cart} onRemove={removeFromCart} onAdd={() => goTab("home")} onCheckout={startCheckout} />;
   else if (screen.name === "schedule")
-    content = <ScheduleScreen positions={checkout} onBack={back} />;
+    content = <ScheduleScreen positions={checkout} onBack={back} onHome={() => { setCart([]); goTab("home"); }} />;
   else
     content = (
       <BookingScreen
@@ -1575,9 +1576,11 @@ type ChosenSlot = {
 function ScheduleScreen({
   positions,
   onBack,
+  onHome,
 }: {
   positions: CheckoutPosition[];
   onBack: () => void;
+  onHome: () => void;
 }) {
   const N = positions.length;
   const [days] = useState(nextDays());
@@ -1589,7 +1592,9 @@ function ScheduleScreen({
   const [slots, setSlots] = useState<{ slot_start: string; slot_end: string }[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
   const [slot, setSlot] = useState<string | null>(null);
-  const [soon, setSoon] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [orderDone, setOrderDone] = useState(false);
+  const [orderErr, setOrderErr] = useState("");
 
   const pos = idx < N ? positions[idx] : null;
   const resolvedSpec: ServiceMaster | null = pos
@@ -1631,8 +1636,8 @@ function ScheduleScreen({
         ? 0
         : Math.round((resolvedSpec.price * (100 - pos.gift_discount_percent)) / 100)
       : pos.final_price;
-    setChosen((p) => ({
-      ...p,
+    const updated = {
+      ...chosen,
       [pos.key]: {
         specialist_id: resolvedSpec.id,
         specialist_name: resolvedSpec.full_name,
@@ -1640,9 +1645,11 @@ function ScheduleScreen({
         ends_at: sl.slot_end,
         final_price: finalP,
       },
-    }));
+    };
+    setChosen(updated);
     setDate(days[0].dateStr);
-    setIdx(idx + 1);
+    const nextMissing = positions.findIndex((p) => !updated[p.key]);
+    setIdx(nextMissing === -1 ? N : nextMissing);
   }
 
   function back() {
@@ -1650,6 +1657,45 @@ function ScheduleScreen({
       setDate(days[0].dateStr);
       setIdx(idx - 1);
     } else onBack();
+  }
+
+  async function placeOrder() {
+    setSubmitting(true);
+    setOrderErr("");
+    const items = positions.map((p) => {
+      const c = chosen[p.key];
+      return {
+        service_id: p.service_id,
+        specialist_id: c.specialist_id,
+        starts_at: c.starts_at,
+        is_gift: p.is_gift,
+        gift_discount_percent: p.gift_discount_percent,
+      };
+    });
+    const r = await apiBookCart(items);
+    setSubmitting(false);
+    if (r.status === 200 && r.data?.ok) {
+      setOrderDone(true);
+    } else if (r.status === 409 && r.data?.busy) {
+      // освобождаем выбор только для занятых позиций и ведём к первой из них
+      const busy = r.data.busy;
+      setChosen((prev) => {
+        const n = { ...prev };
+        busy.forEach((bi) => {
+          const p = positions[bi];
+          if (p) delete n[p.key];
+        });
+        return n;
+      });
+      const first = busy[0] ?? 0;
+      setDate(days[0].dateStr);
+      setIdx(first);
+      setOrderErr("Эти слоты только что заняли — выберите другое время для отмеченных услуг.");
+    } else if (r.status === 401) {
+      setOrderErr("Оформление доступно только из Telegram.");
+    } else {
+      setOrderErr("Не удалось оформить заказ. Попробуйте ещё раз.");
+    }
   }
 
   // занятость внутри заказа (тот же мастер)
@@ -1669,6 +1715,22 @@ function ScheduleScreen({
       <div>
         <button className="back-btn" onClick={onBack}>‹ Назад</button>
         <div className="empty">Корзина пуста.</div>
+      </div>
+    );
+  }
+
+  // ---- УСПЕХ ----
+  if (orderDone) {
+    const total = positions.reduce((s, p) => s + (chosen[p.key]?.final_price ?? 0), 0);
+    return (
+      <div className="success">
+        <div className="ico">✓</div>
+        <h2>Заказ оформлен!</h2>
+        <p>{positions.length} {positions.length === 1 ? "услуга" : "услуг"} · к оплате {fmtRub(total)}</p>
+        <p>Подтверждение отправлено в чат с ботом.</p>
+        <div style={{ maxWidth: 280, margin: "24px auto 0" }}>
+          <button className="btn btn-primary" onClick={onHome}>На главную</button>
+        </div>
       </div>
     );
   }
@@ -1701,9 +1763,11 @@ function ScheduleScreen({
             <span>{fmtRub(total)}</span>
           </div>
         </div>
+        {orderErr && <div className="book-note" style={{ color: "#e03945" }}>{orderErr}</div>}
         <div className="book-bar">
-          <button className="btn btn-primary" onClick={() => setSoon(true)}>Подтвердить заказ</button>
-          {soon && <div className="book-note">Создание заказа подключаем следующим шагом.</div>}
+          <button className="btn btn-primary" disabled={submitting} onClick={placeOrder}>
+            {submitting ? "Оформляем…" : "Подтвердить заказ"}
+          </button>
         </div>
       </div>
     );
