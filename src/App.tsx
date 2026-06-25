@@ -140,7 +140,7 @@ export default function App() {
   else if (screen.name === "category")
     content = <CategoryScreen id={screen.id} title={screen.title} onNavigate={push} onBack={back} />;
   else if (screen.name === "service")
-    content = <ServiceScreen id={screen.id} onNavigate={push} onBack={back} onAddToCart={addToCart} isFav={isFav} onToggleFav={toggleFav} />;
+    content = <ServiceScreen id={screen.id} onNavigate={push} onBack={back} onAddToCart={addToCart} isFav={isFav} onToggleFav={toggleFav} cartCount={cart.length} onOpenCart={() => push({ name: "cart" })} />;
   else if (screen.name === "specialist")
     content = <SpecialistScreen id={screen.id} onNavigate={push} onBack={back} isFav={isFav} onToggleFav={toggleFav} />;
   else if (screen.name === "confirm")
@@ -442,7 +442,7 @@ function CategoryScreen({
 
 /* ---------- SERVICE ---------- */
 function ServiceScreen({
-  id, onNavigate, onBack, onAddToCart, isFav, onToggleFav,
+  id, onNavigate, onBack, onAddToCart, isFav, onToggleFav, cartCount, onOpenCart,
 }: {
   id: string;
   onNavigate: (s: Screen) => void;
@@ -450,7 +450,10 @@ function ServiceScreen({
   onAddToCart: (item: CartItem) => void;
   isFav: (kind: "specialist" | "service", id: string) => boolean;
   onToggleFav: (kind: "specialist" | "service", id: string) => void;
+  cartCount: number;
+  onOpenCart: () => void;
 }) {
+  const [addedId, setAddedId] = useState<string | null>(null);
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [masters, setMasters] = useState<Master[]>([]);
   const [loading, setLoading] = useState(true);
@@ -538,23 +541,30 @@ function ServiceScreen({
                   Записаться
                 </button>
                 <button
-                  className="mini-btn ghost"
-                  onClick={() =>
+                  className={`mini-btn ghost ${addedId === m.id ? "added" : ""}`}
+                  onClick={() => {
                     onAddToCart({
                       service_id: service.id,
                       service_name: service.name,
                       specialist_id: m.id,
                       specialist_name: m.full_name,
                       base_price: m.price,
-                    })
-                  }
+                    });
+                    setAddedId(m.id);
+                    setTimeout(() => setAddedId((cur) => (cur === m.id ? null : cur)), 1500);
+                  }}
                 >
-                  + в корзину
+                  {addedId === m.id ? "✓ Добавлено" : "+ в корзину"}
                 </button>
               </div>
             </div>
           </div>
         ))
+      )}
+      {cartCount > 0 && (
+        <button className="cart-fab" onClick={onOpenCart}>
+          🛒 В корзине: {cartCount} · Перейти
+        </button>
       )}
     </div>
   );
