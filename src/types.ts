@@ -52,6 +52,8 @@ export type Screen =
   | { name: "home" }
   | { name: "bookings" }
   | { name: "profile" }
+  | { name: "favorites" }
+  | { name: "my-reviews" }
   | { name: "category"; id: string; title: string }
   | { name: "service"; id: string }
   | { name: "specialist"; id: string }
