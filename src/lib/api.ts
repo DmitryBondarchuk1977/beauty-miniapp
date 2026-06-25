@@ -508,3 +508,32 @@ export async function apiToggleFavorite(
     return { status: 0, data: null };
   }
 }
+
+/* ---------- мои отзывы ---------- */
+export type MyReview = {
+  id: string;
+  booking_id: string;
+  specialist_rating: number;
+  service_rating: number;
+  comment: string | null;
+  status: string;
+  created_at: string;
+  service: string | null;
+  specialist: string | null;
+};
+
+export async function apiMyReviews(): Promise<{
+  status: number;
+  data: { ok: boolean; reviews: MyReview[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/my-reviews`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData() }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

@@ -18,12 +18,16 @@ import {
   apiCancelBooking,
   apiFavoritesList,
   apiToggleFavorite,
+  apiMyReviews,
   type PriceResult,
   type SpecServiceItem,
   type Work,
   type Review,
   type CartPrice,
   type MyBooking,
+  type MyReview,
+  type FavSpecialist,
+  type FavService,
 } from "./lib/api";
 import type {
   Category,
@@ -118,7 +122,7 @@ export default function App() {
   else if (screen.name === "bookings")
     content = <BookingsScreen onOpenReview={(id) => push({ name: "review", bookingId: id })} onOpenCancel={(id) => push({ name: "cancel", bookingId: id })} onBrowse={() => goTab("home")} />;
   else if (screen.name === "profile")
-    content = <ProfileScreen />;
+    content = <ProfileScreen onNavigate={push} onToggleFav={toggleFav} />;
   else if (screen.name === "category")
     content = <CategoryScreen id={screen.id} title={screen.title} onNavigate={push} onBack={back} />;
   else if (screen.name === "service")
@@ -1062,10 +1066,46 @@ function CancelScreen({
   );
 }
 
-/* ---------- PROFILE (заглушка, наполним далее) ---------- */
-function ProfileScreen() {
+/* ---------- PROFILE ---------- */
+function reviewStatusLabel(s: string) {
+  if (s === "approved") return { text: "Одобрен", cls: "ok" };
+  if (s === "rejected") return { text: "Отклонён", cls: "rej" };
+  return { text: "На проверке", cls: "pend" };
+}
+
+function ProfileScreen({
+  onNavigate,
+  onToggleFav,
+}: {
+  onNavigate: (s: Screen) => void;
+  onToggleFav: (kind: "specialist" | "service", id: string) => void;
+}) {
   const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
   const name = [u?.first_name, u?.last_name].filter(Boolean).join(" ") || "Гость";
+
+  const [reviews, setReviews] = useState<MyReview[] | null>(null);
+  const [favSpec, setFavSpec] = useState<FavSpecialist[]>([]);
+  const [favSvc, setFavSvc] = useState<FavService[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([apiMyReviews(), apiFavoritesList()]).then(([rev, fav]) => {
+      if (rev.status === 200 && rev.data?.ok) setReviews(rev.data.reviews);
+      else setReviews([]);
+      if (fav.status === 200 && fav.data?.ok) {
+        setFavSpec(fav.data.specialists);
+        setFavSvc(fav.data.services);
+      }
+      setLoaded(true);
+    });
+  }, []);
+
+  const removeFav = (kind: "specialist" | "service", id: string) => {
+    onToggleFav(kind, id);
+    if (kind === "specialist") setFavSpec((p) => p.filter((x) => x.id !== id));
+    else setFavSvc((p) => p.filter((x) => x.id !== id));
+  };
+
   return (
     <div>
       <div className="sect-title" style={{ marginTop: 0 }}>Профиль</div>
@@ -1076,7 +1116,61 @@ function ProfileScreen() {
         <div className="sp-name">{name}</div>
         {u?.username && <div className="sp-meta"><span>@{u.username}</span></div>}
       </div>
-      <div className="empty">Здесь скоро появятся ваши отзывы и избранное.</div>
+
+      <div className="sect-title">Избранное</div>
+      {favSpec.length === 0 && favSvc.length === 0 ? (
+        <div className="empty">Пока ничего нет. Добавляйте мастеров и услуги сердечком ♥</div>
+      ) : (
+        <>
+          {favSpec.map((s) => (
+            <div className="fav-row" key={`sp-${s.id}`}>
+              <div className="fav-photo round" onClick={() => onNavigate({ name: "specialist", id: s.id })}>
+                {s.photo_url ? <img src={s.photo_url} alt={s.full_name} /> : initials(s.full_name)}
+              </div>
+              <div className="fav-main" onClick={() => onNavigate({ name: "specialist", id: s.id })}>
+                <div className="nm">{s.full_name}</div>
+                <div className="su">Мастер · ★ {s.rating?.toFixed(1) ?? "0.0"}</div>
+              </div>
+              <button className="fav-btn on" onClick={() => removeFav("specialist", s.id)} aria-label="Убрать">♥</button>
+            </div>
+          ))}
+          {favSvc.map((s) => (
+            <div className="fav-row" key={`sv-${s.id}`}>
+              <div className="fav-photo" onClick={() => onNavigate({ name: "service", id: s.id })}>
+                {s.image_url ? <img src={s.image_url} alt={s.name} /> : "✂️"}
+              </div>
+              <div className="fav-main" onClick={() => onNavigate({ name: "service", id: s.id })}>
+                <div className="nm">{s.name}</div>
+                <div className="su">Услуга · {fmtDuration(s.duration_min)}</div>
+              </div>
+              <button className="fav-btn on" onClick={() => removeFav("service", s.id)} aria-label="Убрать">♥</button>
+            </div>
+          ))}
+        </>
+      )}
+
+      <div className="sect-title">Мои отзывы</div>
+      {!loaded ? (
+        <div className="skeleton" style={{ height: 70, borderRadius: 14 }} />
+      ) : !reviews || reviews.length === 0 ? (
+        <div className="empty">Вы ещё не оставляли отзывов.</div>
+      ) : (
+        reviews.map((r) => {
+          const st = reviewStatusLabel(r.status);
+          return (
+            <div className="review-card" key={r.id}>
+              <div className="review-top">
+                <span className="review-stars">{stars(r.specialist_rating)}</span>
+                <span className={`rev-status ${st.cls}`}>{st.text}</span>
+              </div>
+              {r.comment && <p className="review-text">{r.comment}</p>}
+              <div className="review-who">
+                {r.specialist ?? ""}{r.service ? ` · ${r.service}` : ""} · {reviewDate(r.created_at)}
+              </div>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }
