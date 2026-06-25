@@ -19,6 +19,8 @@ import {
   apiFavoritesList,
   apiToggleFavorite,
   apiMyReviews,
+  fetchServiceMasters,
+  type ServiceMaster,
   type PriceResult,
   type SpecServiceItem,
   type Work,
@@ -39,6 +41,7 @@ import type {
   Master,
   Screen,
   CartItem,
+  CheckoutPosition,
 } from "./types";
 
 const tg = window.Telegram?.WebApp;
@@ -117,6 +120,13 @@ export default function App() {
 
   const goTab = (name: "home" | "bookings" | "cart" | "profile") => setStack([{ name }]);
 
+  // позиции для оформления (корзина → расписание)
+  const [checkout, setCheckout] = useState<CheckoutPosition[]>([]);
+  const startCheckout = (positions: CheckoutPosition[]) => {
+    setCheckout(positions);
+    push({ name: "schedule" });
+  };
+
   let content: ReactNode;
   if (screen.name === "home") content = <Home onNavigate={push} />;
   else if (screen.name === "bookings")
@@ -140,7 +150,9 @@ export default function App() {
   else if (screen.name === "cancel")
     content = <CancelScreen bookingId={screen.bookingId} onDone={() => goTab("bookings")} onBack={back} />;
   else if (screen.name === "cart")
-    content = <CartScreen cart={cart} onRemove={removeFromCart} onAdd={() => goTab("home")} />;
+    content = <CartScreen cart={cart} onRemove={removeFromCart} onAdd={() => goTab("home")} onCheckout={startCheckout} />;
+  else if (screen.name === "schedule")
+    content = <ScheduleScreen positions={checkout} onBack={back} />;
   else
     content = (
       <BookingScreen
@@ -1247,13 +1259,14 @@ function CartScreen({
   cart,
   onRemove,
   onAdd,
+  onCheckout,
 }: {
   cart: CartItem[];
   onRemove: (i: number) => void;
   onAdd: () => void;
+  onCheckout: (positions: CheckoutPosition[]) => void;
 }) {
   const [price, setPrice] = useState<CartPrice | null>(null);
-  const [soon, setSoon] = useState(false);
 
   useEffect(() => {
     if (cart.length === 0) { setPrice(null); return; }
@@ -1279,6 +1292,41 @@ function CartScreen({
   const subtotal = price?.subtotal ?? cart.reduce((s, c) => s + c.base_price, 0);
   const discount = price?.discount_total ?? 0;
   const total = price?.total ?? subtotal;
+
+  const goSchedule = () => {
+    const positions: CheckoutPosition[] = cart.map((c, i) => {
+      const p = price?.items[i];
+      return {
+        key: `c${i}`,
+        service_id: c.service_id,
+        service_name: c.service_name,
+        specialist_id: c.specialist_id,
+        specialist_name: c.specialist_name,
+        base_price: p?.full_price ?? c.base_price,
+        final_price: p?.final_price ?? c.base_price,
+        discount: p?.discount_amount ?? 0,
+        promo_title: p?.promo_title ?? null,
+        is_gift: false,
+        gift_discount_percent: 0,
+      };
+    });
+    (price?.gifts ?? []).forEach((g, i) => {
+      positions.push({
+        key: `g${i}`,
+        service_id: g.gift_service_id,
+        service_name: g.gift_service_name,
+        specialist_id: null,
+        specialist_name: null,
+        base_price: 0,
+        final_price: 0,
+        discount: 0,
+        promo_title: g.promo_title,
+        is_gift: true,
+        gift_discount_percent: g.gift_discount_percent,
+      });
+    });
+    onCheckout(positions);
+  };
 
   return (
     <div>
@@ -1352,11 +1400,8 @@ function CartScreen({
       )}
 
       <div className="book-bar">
-        <button className="btn btn-primary" onClick={() => setSoon(true)}>Выбрать время</button>
+        <button className="btn btn-primary" onClick={goSchedule}>Выбрать время</button>
         <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={onAdd}>Добавить ещё услугу</button>
-        {soon && (
-          <div className="book-note">Выбор времени по каждой позиции добавляем следующим шагом.</div>
-        )}
       </div>
     </div>
   );
@@ -1502,6 +1547,232 @@ function ReviewScreen({ bookingId, onHome }: { bookingId: string; onHome: () => 
       <div className="book-bar">
         <button className="btn btn-primary" disabled={sending} onClick={submit}>
           {sending ? "Отправляем…" : "Отправить отзыв"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- SCHEDULE (A2: время по позициям) ---------- */
+type ChosenSlot = {
+  specialist_id: string;
+  specialist_name: string;
+  starts_at: string;
+  ends_at: string;
+  final_price: number;
+};
+
+function ScheduleScreen({
+  positions,
+  onBack,
+}: {
+  positions: CheckoutPosition[];
+  onBack: () => void;
+}) {
+  const N = positions.length;
+  const [days] = useState(nextDays());
+  const [idx, setIdx] = useState(0);
+  const [chosen, setChosen] = useState<Record<string, ChosenSlot>>({});
+  const [giftSpec, setGiftSpec] = useState<Record<string, ServiceMaster>>({});
+  const [masters, setMasters] = useState<ServiceMaster[] | null>(null);
+  const [date, setDate] = useState(days[0].dateStr);
+  const [slots, setSlots] = useState<{ slot_start: string; slot_end: string }[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slot, setSlot] = useState<string | null>(null);
+  const [soon, setSoon] = useState(false);
+
+  const pos = idx < N ? positions[idx] : null;
+  const resolvedSpec: ServiceMaster | null = pos
+    ? pos.is_gift
+      ? giftSpec[pos.key] ?? null
+      : { id: pos.specialist_id!, full_name: pos.specialist_name!, photo_url: null, rating: 0, price: pos.base_price }
+    : null;
+
+  // загрузка мастеров для подарка
+  useEffect(() => {
+    if (pos && pos.is_gift && !giftSpec[pos.key]) {
+      setMasters(null);
+      fetchServiceMasters(pos.service_id).then(setMasters);
+    }
+  }, [idx]);
+
+  // слоты для текущей позиции
+  useEffect(() => {
+    if (!pos || !resolvedSpec) return;
+    setSlotsLoading(true);
+    setSlot(null);
+    fetchSlots(resolvedSpec.id, pos.service_id, date).then((s) => {
+      setSlots(s);
+      setSlotsLoading(false);
+    });
+  }, [idx, resolvedSpec?.id, date]);
+
+  function pickMaster(m: ServiceMaster) {
+    if (!pos) return;
+    setGiftSpec((p) => ({ ...p, [pos.key]: m }));
+    setDate(days[0].dateStr);
+  }
+
+  function next() {
+    if (!pos || !resolvedSpec || !slot) return;
+    const sl = slots.find((x) => x.slot_start === slot)!;
+    const finalP = pos.is_gift
+      ? pos.gift_discount_percent >= 100
+        ? 0
+        : Math.round((resolvedSpec.price * (100 - pos.gift_discount_percent)) / 100)
+      : pos.final_price;
+    setChosen((p) => ({
+      ...p,
+      [pos.key]: {
+        specialist_id: resolvedSpec.id,
+        specialist_name: resolvedSpec.full_name,
+        starts_at: slot,
+        ends_at: sl.slot_end,
+        final_price: finalP,
+      },
+    }));
+    setDate(days[0].dateStr);
+    setIdx(idx + 1);
+  }
+
+  function back() {
+    if (idx > 0) {
+      setDate(days[0].dateStr);
+      setIdx(idx - 1);
+    } else onBack();
+  }
+
+  // занятость внутри заказа (тот же мастер)
+  const busy = resolvedSpec
+    ? Object.entries(chosen)
+        .filter(([k, c]) => c.specialist_id === resolvedSpec.id && k !== pos?.key)
+        .map((e) => [Date.parse(e[1].starts_at), Date.parse(e[1].ends_at)] as [number, number])
+    : [];
+  const availSlots = slots.filter((sl) => {
+    const s = Date.parse(sl.slot_start);
+    const e = Date.parse(sl.slot_end);
+    return !busy.some(([bs, be]) => s < be && e > bs);
+  });
+
+  if (N === 0) {
+    return (
+      <div>
+        <button className="back-btn" onClick={onBack}>‹ Назад</button>
+        <div className="empty">Корзина пуста.</div>
+      </div>
+    );
+  }
+
+  // ---- СВОДКА ----
+  if (idx >= N) {
+    const total = positions.reduce((s, p) => s + (chosen[p.key]?.final_price ?? 0), 0);
+    return (
+      <div>
+        <button className="back-btn" onClick={() => setIdx(N - 1)}>‹ Назад</button>
+        <div className="sect-title" style={{ marginTop: 0 }}>Проверьте заказ</div>
+        {positions.map((p) => {
+          const c = chosen[p.key];
+          return (
+            <div className="cart-row" key={p.key}>
+              <div className="cart-main">
+                <div className="nm">{p.is_gift ? `🎁 ${p.service_name}` : p.service_name}</div>
+                <div className="su">{c?.specialist_name}</div>
+                <div className="su" style={{ textTransform: "capitalize" }}>{c ? fullDateTime(c.starts_at) : ""}</div>
+              </div>
+              <div className="cart-price">
+                <span className="now">{p.is_gift && p.gift_discount_percent >= 100 ? "бесплатно" : fmtRub(c?.final_price ?? 0)}</span>
+              </div>
+            </div>
+          );
+        })}
+        <div className="price-card">
+          <div className="price-row total">
+            <span>К оплате</span>
+            <span>{fmtRub(total)}</span>
+          </div>
+        </div>
+        <div className="book-bar">
+          <button className="btn btn-primary" onClick={() => setSoon(true)}>Подтвердить заказ</button>
+          {soon && <div className="book-note">Создание заказа подключаем следующим шагом.</div>}
+        </div>
+      </div>
+    );
+  }
+
+  // ---- ВЫБОР МАСТЕРА ДЛЯ ПОДАРКА ----
+  if (pos && pos.is_gift && !resolvedSpec) {
+    return (
+      <div>
+        <button className="back-btn" onClick={back}>‹ Назад</button>
+        <div className="book-sub">Шаг {idx + 1} из {N}</div>
+        <div className="sect-title" style={{ marginTop: 4 }}>🎁 {pos.service_name}</div>
+        <div className="book-sub">Подарок — выберите мастера</div>
+        {masters === null ? (
+          <div className="skeleton" style={{ height: 64, borderRadius: 14, marginTop: 8 }} />
+        ) : masters.length === 0 ? (
+          <div className="empty">Нет мастеров для этой услуги.</div>
+        ) : (
+          masters.map((m) => (
+            <div key={m.id} className="master-row" onClick={() => pickMaster(m)}>
+              <div className="master-photo">
+                {m.photo_url ? <img src={m.photo_url} alt={m.full_name} /> : initials(m.full_name)}
+              </div>
+              <div className="master-info">
+                <div className="master-name">{m.full_name}</div>
+                <div className="master-rating">★ {m.rating?.toFixed(1) ?? "0.0"}</div>
+              </div>
+              <div className="master-cta">
+                <div className="go">Выбрать ›</div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    );
+  }
+
+  // ---- ВЫБОР ДАТЫ/ВРЕМЕНИ ----
+  return (
+    <div>
+      <button className="back-btn" onClick={back}>‹ Назад</button>
+      <div className="book-sub">Шаг {idx + 1} из {N}</div>
+      <div className="sect-title" style={{ marginTop: 4 }}>
+        {pos!.is_gift ? `🎁 ${pos!.service_name}` : pos!.service_name}
+      </div>
+      <div className="book-sub">{resolvedSpec!.full_name}</div>
+
+      <div className="sect-title">Дата</div>
+      <div className="date-strip">
+        {days.map((d) => (
+          <button key={d.dateStr} className={`date-chip ${date === d.dateStr ? "on" : ""}`} onClick={() => setDate(d.dateStr)}>
+            <div className="dow">{d.dow}</div>
+            <div className="dom">{d.dom}</div>
+          </button>
+        ))}
+      </div>
+
+      <div className="sect-title">Время</div>
+      {slotsLoading ? (
+        <div className="slots-grid">
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+            <div key={i} className="skeleton" style={{ height: 42, borderRadius: 12 }} />
+          ))}
+        </div>
+      ) : availSlots.length === 0 ? (
+        <div className="empty">На этот день свободных слотов нет. Выберите другую дату.</div>
+      ) : (
+        <div className="slots-grid">
+          {availSlots.map((s) => (
+            <button key={s.slot_start} className={`slot ${slot === s.slot_start ? "on" : ""}`} onClick={() => setSlot(s.slot_start)}>
+              {slotTime(s.slot_start)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="book-bar">
+        <button className="btn btn-primary" disabled={!slot} onClick={next}>
+          {idx === N - 1 ? "К проверке заказа" : "Далее"}
         </button>
       </div>
     </div>

@@ -537,3 +537,24 @@ export async function apiMyReviews(): Promise<{
     return { status: 0, data: null };
   }
 }
+
+/* ---------- мастера для услуги (для подарка в корзине) ---------- */
+export type ServiceMaster = { id: string; full_name: string; photo_url: string | null; rating: number; price: number };
+
+export async function fetchServiceMasters(serviceId: string): Promise<ServiceMaster[]> {
+  const { data } = await supabase
+    .from("specialist_services")
+    .select("price, specialist:specialists ( id, full_name, photo_url, rating, is_active )")
+    .eq("service_id", serviceId);
+  type Row = { price: number; specialist: { id: string; full_name: string; photo_url: string | null; rating: number; is_active: boolean } | null };
+  return ((data as unknown as Row[]) ?? [])
+    .filter((r) => r.specialist?.is_active)
+    .map((r) => ({
+      id: r.specialist!.id,
+      full_name: r.specialist!.full_name,
+      photo_url: r.specialist!.photo_url,
+      rating: r.specialist!.rating,
+      price: r.price,
+    }))
+    .sort((a, b) => b.rating - a.rating);
+}

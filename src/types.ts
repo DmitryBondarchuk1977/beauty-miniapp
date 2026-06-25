@@ -61,6 +61,7 @@ export type Screen =
   | { name: "review"; bookingId: string }
   | { name: "cancel"; bookingId: string }
   | { name: "cart" }
+  | { name: "schedule" }
   | { name: "booking"; serviceId: string; specialistId: string };
 
 export type CartItem = {
@@ -69,4 +70,18 @@ export type CartItem = {
   specialist_id: string;
   specialist_name: string;
   base_price: number;
+};
+
+export type CheckoutPosition = {
+  key: string;
+  service_id: string;
+  service_name: string;
+  specialist_id: string | null;
+  specialist_name: string | null;
+  base_price: number;
+  final_price: number;
+  discount: number;
+  promo_title: string | null;
+  is_gift: boolean;
+  gift_discount_percent: number;
 };
