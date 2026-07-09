@@ -342,7 +342,7 @@ function Home({ onNavigate }: { onNavigate: (s: Screen) => void }) {
           {categories.map((c) => (
             <div key={c.id} className="cat" onClick={() => onNavigate({ name: "category", id: c.id, title: c.name })}>
               <div className="circle">
-                {c.image_url ? <img src={c.image_url} alt={c.name} /> : <span>✂️</span>}
+                {c.image_url ? <img loading="lazy" decoding="async" src={c.image_url} alt={c.name} /> : <span>✂️</span>}
               </div>
               <div className="lbl">{c.name}</div>
             </div>
@@ -356,7 +356,7 @@ function Home({ onNavigate }: { onNavigate: (s: Screen) => void }) {
           <div className="carousel">
             {promos.map((p) => (
               <div className="ann" key={p.id}>
-                {p.banner_url && <img src={p.banner_url} alt={p.title} />}
+                {p.banner_url && <img loading="lazy" decoding="async" src={p.banner_url} alt={p.title} />}
                 <span className="tagline">{promoBadge(p)}</span>
                 <div className={`cap ${p.banner_url ? "over-img" : ""}`}>{p.title}</div>
               </div>
@@ -377,7 +377,7 @@ function Home({ onNavigate }: { onNavigate: (s: Screen) => void }) {
           {visibleSpecs.map((s) => (
             <div key={s.id} className="spec-card" onClick={() => onNavigate({ name: "specialist", id: s.id })}>
               <div className="photo">
-                {s.photo_url ? <img src={s.photo_url} alt={s.full_name} /> : <span className="initials">{initials(s.full_name)}</span>}
+                {s.photo_url ? <img loading="lazy" decoding="async" src={s.photo_url} alt={s.full_name} /> : <span className="initials">{initials(s.full_name)}</span>}
               </div>
               <div className="body">
                 <div className="name">{s.full_name}</div>
@@ -427,7 +427,7 @@ function CategoryScreen({
           {chips.map((c) => (
             <div key={c.id} className={`cat ${active === c.id ? "on" : ""}`} onClick={() => setActive(c.id)}>
               <div className="circle">
-                {c.image_url ? <img src={c.image_url} alt={c.name} /> : <span>✂️</span>}
+                {c.image_url ? <img loading="lazy" decoding="async" src={c.image_url} alt={c.name} /> : <span>✂️</span>}
               </div>
               <div className="lbl">{c.name}</div>
             </div>
@@ -445,7 +445,7 @@ function CategoryScreen({
         <div className="svc-list">
           {visible.map((s) => (
             <div key={s.id} className="svc-row" onClick={() => onNavigate({ name: "service", id: s.id })}>
-              <div className="svc-thumb">{s.image_url && <img src={s.image_url} alt={s.name} />}</div>
+              <div className="svc-thumb">{s.image_url && <img loading="lazy" decoding="async" src={s.image_url} alt={s.name} />}</div>
               <div className="svc-info">
                 <div className="svc-name">{s.name}</div>
                 <div className="svc-sub">{fmtDuration(s.duration_min)}</div>
@@ -515,7 +515,7 @@ function ServiceScreen({
     <div>
       <button className="back-btn" onClick={onBack}>‹ Назад</button>
 
-      <div className="detail-hero">{service.image_url && <img src={service.image_url} alt={service.name} />}</div>
+      <div className="detail-hero">{service.image_url && <img loading="lazy" decoding="async" src={service.image_url} alt={service.name} />}</div>
       <div className="title-row">
         <h2 className="detail-title">{service.name}</h2>
         <button
@@ -542,7 +542,7 @@ function ServiceScreen({
               className="master-photo"
               onClick={() => onNavigate({ name: "booking", serviceId: service.id, specialistId: m.id })}
             >
-              {m.photo_url ? <img src={m.photo_url} alt={m.full_name} /> : initials(m.full_name)}
+              {m.photo_url ? <img loading="lazy" decoding="async" src={m.photo_url} alt={m.full_name} /> : initials(m.full_name)}
             </div>
             <div
               className="master-info"
@@ -907,7 +907,7 @@ function SpecialistScreen({
 
       <div className="sp-head">
         <div className="sp-photo">
-          {sp.photo_url ? <img src={sp.photo_url} alt={sp.full_name} /> : initials(sp.full_name)}
+          {sp.photo_url ? <img loading="lazy" decoding="async" src={sp.photo_url} alt={sp.full_name} /> : initials(sp.full_name)}
         </div>
         <div className="sp-name">
           {sp.full_name}
@@ -955,7 +955,7 @@ function SpecialistScreen({
           <div className="works-strip">
             {data.works.map((w, i) => (
               <div className="work" key={i}>
-                <img src={w.image_url} alt={w.caption ?? ""} />
+                <img loading="lazy" decoding="async" src={w.image_url} alt={w.caption ?? ""} />
                 {w.caption && <div className="cap">{w.caption}</div>}
               </div>
             ))}
@@ -1181,7 +1181,7 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
       <div className="sect-title" style={{ marginTop: 0 }}>Профиль</div>
       <div className="sp-head">
         <div className="sp-photo">
-          {u?.photo_url ? <img src={u.photo_url} alt={name} /> : initials(name)}
+          {u?.photo_url ? <img loading="lazy" decoding="async" src={u.photo_url} alt={name} /> : initials(name)}
         </div>
         <div className="sp-name">{name}</div>
         {u?.username && <div className="sp-meta"><span>@{u.username}</span></div>}
@@ -1340,7 +1340,7 @@ function FavoritesScreen({
           favSpec.map((s) => (
             <div className="fav-row" key={s.id}>
               <div className="fav-photo round" onClick={() => onNavigate({ name: "specialist", id: s.id })}>
-                {s.photo_url ? <img src={s.photo_url} alt={s.full_name} /> : initials(s.full_name)}
+                {s.photo_url ? <img loading="lazy" decoding="async" src={s.photo_url} alt={s.full_name} /> : initials(s.full_name)}
               </div>
               <div className="fav-main" onClick={() => onNavigate({ name: "specialist", id: s.id })}>
                 <div className="nm">{s.full_name}</div>
@@ -1356,7 +1356,7 @@ function FavoritesScreen({
         favSvc.map((s) => (
           <div className="fav-row" key={s.id}>
             <div className="fav-photo" onClick={() => onNavigate({ name: "service", id: s.id })}>
-              {s.image_url ? <img src={s.image_url} alt={s.name} /> : "✂️"}
+              {s.image_url ? <img loading="lazy" decoding="async" src={s.image_url} alt={s.name} /> : "✂️"}
             </div>
             <div className="fav-main" onClick={() => onNavigate({ name: "service", id: s.id })}>
               <div className="nm">{s.name}</div>
@@ -2006,7 +2006,7 @@ function ScheduleScreen({
           masters.map((m) => (
             <div key={m.id} className="master-row" onClick={() => pickMaster(m)}>
               <div className="master-photo">
-                {m.photo_url ? <img src={m.photo_url} alt={m.full_name} /> : initials(m.full_name)}
+                {m.photo_url ? <img loading="lazy" decoding="async" src={m.photo_url} alt={m.full_name} /> : initials(m.full_name)}
               </div>
               <div className="master-info">
                 <div className="master-name">{m.full_name}</div>
