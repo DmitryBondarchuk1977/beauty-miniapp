@@ -583,3 +583,30 @@ export async function apiBookCart(items: BookCartItem[]): Promise<{
     return { status: 0, data: null };
   }
 }
+
+/* ---------- лояльность (баллы) ---------- */
+export type LoyaltyTx = {
+  kind: "accrual" | "redemption" | "adjustment";
+  points: number;
+  note: string | null;
+  created_at: string;
+};
+export type LoyaltyData = {
+  ok: boolean;
+  balance: number;
+  total_earned: number;
+  total_spent: number;
+  cashback_percent: number;
+  redeem_max_percent: number;
+  point_value: number;
+  transactions: LoyaltyTx[];
+};
+
+export async function apiLoyalty(): Promise<{ status: number; data: LoyaltyData | null }> {
+  try {
+    const res = await fetch(`${API}/api/loyalty?initData=${encodeURIComponent(initData())}`);
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

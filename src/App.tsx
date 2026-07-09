@@ -31,6 +31,9 @@ import {
   type MyReview,
   type FavSpecialist,
   type FavService,
+  apiLoyalty,
+  type LoyaltyData,
+  type LoyaltyTx,
 } from "./lib/api";
 import type {
   Category,
@@ -138,6 +141,8 @@ export default function App() {
     content = <FavoritesScreen onNavigate={push} onToggleFav={toggleFav} onBack={back} />;
   else if (screen.name === "my-reviews")
     content = <MyReviewsScreen onBack={back} />;
+  else if (screen.name === "loyalty")
+    content = <LoyaltyScreen onBack={back} />;
   else if (screen.name === "category")
     content = <CategoryScreen id={screen.id} title={screen.title} onNavigate={push} onBack={back} />;
   else if (screen.name === "service")
@@ -1097,6 +1102,14 @@ function CancelScreen({
 function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
   const name = [u?.first_name, u?.last_name].filter(Boolean).join(" ") || "Гость";
+
+  const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null);
+  useEffect(() => {
+    apiLoyalty().then((r) => {
+      if (r.status === 200 && r.data?.ok) setLoyalty(r.data);
+    });
+  }, []);
+
   return (
     <div>
       <div className="sect-title" style={{ marginTop: 0 }}>Профиль</div>
@@ -1107,6 +1120,19 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         <div className="sp-name">{name}</div>
         {u?.username && <div className="sp-meta"><span>@{u.username}</span></div>}
       </div>
+
+      {loyalty && (
+        <button className="loyalty-card" onClick={() => onNavigate({ name: "loyalty" })}>
+          <div className="lc-left">
+            <div className="lc-label">Мои баллы</div>
+            <div className="lc-balance">{fmtPoints(loyalty.balance)}</div>
+            {loyalty.cashback_percent > 0 && (
+              <div className="lc-hint">Кешбэк {loyalty.cashback_percent}% с каждого визита</div>
+            )}
+          </div>
+          <span className="lc-go">›</span>
+        </button>
+      )}
 
       <div className="menu-list">
         <button className="menu-row" onClick={() => onNavigate({ name: "favorites" })}>
@@ -1120,6 +1146,76 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
           <span className="menu-go">›</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ---------- LOYALTY (баллы: баланс + история) ---------- */
+function pointsWord(n: number) {
+  const a = Math.abs(n) % 100;
+  const b = a % 10;
+  if (a > 10 && a < 20) return "баллов";
+  if (b === 1) return "балл";
+  if (b >= 2 && b <= 4) return "балла";
+  return "баллов";
+}
+function fmtPoints(n: number) {
+  return `${n} ${pointsWord(n)}`;
+}
+function loyaltyDate(iso: string) {
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "Europe/Moscow" }).format(new Date(iso));
+}
+function txLabel(t: LoyaltyTx) {
+  if (t.note) return t.note;
+  if (t.kind === "accrual") return "Начисление";
+  if (t.kind === "redemption") return "Списание";
+  return "Корректировка";
+}
+
+function LoyaltyScreen({ onBack }: { onBack: () => void }) {
+  const [data, setData] = useState<LoyaltyData | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    apiLoyalty().then((r) => {
+      if (r.status === 200 && r.data?.ok) setData(r.data);
+      setLoaded(true);
+    });
+  }, []);
+
+  return (
+    <div>
+      <button className="back-btn" onClick={onBack}>‹ Назад</button>
+      <div className="sect-title" style={{ marginTop: 0 }}>Мои баллы</div>
+
+      <div className="loyalty-hero">
+        <div className="lh-balance">{fmtPoints(data?.balance ?? 0)}</div>
+        {(data?.cashback_percent ?? 0) > 0 && (
+          <div className="lh-hint">Кешбэк {data?.cashback_percent}% с каждого оплаченного визита</div>
+        )}
+        <div className="lh-totals">
+          <span>Начислено: {data?.total_earned ?? 0}</span>
+          <span>Потрачено: {data?.total_spent ?? 0}</span>
+        </div>
+      </div>
+
+      <div className="sect-title">История</div>
+      {!loaded ? (
+        <div className="skeleton" style={{ height: 60, borderRadius: 14 }} />
+      ) : !data || data.transactions.length === 0 ? (
+        <div className="empty">Пока операций нет. Баллы начислим после первого визита.</div>
+      ) : (
+        data.transactions.map((t, i) => (
+          <div className="ltx-row" key={i}>
+            <div className="ltx-main">
+              <div className="ltx-note">{txLabel(t)}</div>
+              <div className="ltx-date">{loyaltyDate(t.created_at)}</div>
+            </div>
+            <div className={`ltx-points ${t.points >= 0 ? "plus" : "minus"}`}>
+              {t.points >= 0 ? "+" : ""}{t.points}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

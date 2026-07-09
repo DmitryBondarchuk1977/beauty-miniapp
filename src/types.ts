@@ -54,6 +54,7 @@ export type Screen =
   | { name: "profile" }
   | { name: "favorites" }
   | { name: "my-reviews" }
+  | { name: "loyalty" }
   | { name: "category"; id: string; title: string }
   | { name: "service"; id: string }
   | { name: "specialist"; id: string }
