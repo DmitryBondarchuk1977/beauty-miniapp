@@ -703,9 +703,11 @@ function BookingScreen({
   const finalP = price?.final_price ?? full;
 
   // лимит списания баллов
-  const pv = loyalty?.point_value ?? 1;
-  const maxByPct = finalP != null ? Math.floor((finalP * (loyalty?.redeem_max_percent ?? 0)) / 100 / pv) : 0;
-  const maxRedeem = Math.max(0, Math.min(loyalty?.balance ?? 0, maxByPct));
+  const pv = Number(loyalty?.point_value ?? 1) || 1;
+  const redeemMaxPct = Number(loyalty?.redeem_max_percent ?? 0) || 0;
+  const balancePts = Number(loyalty?.balance ?? 0) || 0;
+  const maxByPct = finalP != null ? Math.floor((finalP * redeemMaxPct) / 100 / pv) : 0;
+  const maxRedeem = Math.max(0, Math.min(balancePts, maxByPct));
   const redeemClamped = Math.min(redeem, maxRedeem);
   const moneyDue = finalP != null ? Math.max(0, finalP - redeemClamped * pv) : finalP;
 
@@ -1752,9 +1754,11 @@ function ScheduleScreen({
 
   // лимит списания баллов на весь заказ
   const cartTotal = positions.reduce((s, p) => s + (chosen[p.key]?.final_price ?? 0), 0);
-  const pv = loyalty?.point_value ?? 1;
-  const maxByPct = Math.floor((cartTotal * (loyalty?.redeem_max_percent ?? 0)) / 100 / pv);
-  const maxRedeem = Math.max(0, Math.min(loyalty?.balance ?? 0, maxByPct));
+  const pv = Number(loyalty?.point_value ?? 1) || 1;
+  const redeemMaxPct = Number(loyalty?.redeem_max_percent ?? 0) || 0;
+  const balancePts = Number(loyalty?.balance ?? 0) || 0;
+  const maxByPct = Math.floor((cartTotal * redeemMaxPct) / 100 / pv);
+  const maxRedeem = Math.max(0, Math.min(balancePts, maxByPct));
   const redeemClamped = Math.min(redeem, maxRedeem);
   const moneyDue = Math.max(0, cartTotal - redeemClamped * pv);
   const resolvedSpec: ServiceMaster | null = pos
