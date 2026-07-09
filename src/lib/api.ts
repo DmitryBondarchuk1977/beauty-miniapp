@@ -226,7 +226,7 @@ export async function apiPrice(
   }
 }
 
-export async function apiBook(serviceId: string, specialistId: string, startsAt: string) {
+export async function apiBook(serviceId: string, specialistId: string, startsAt: string, points = 0) {
   try {
     const res = await fetch(`${API}/api/book`, {
       method: "POST",
@@ -236,6 +236,7 @@ export async function apiBook(serviceId: string, specialistId: string, startsAt:
         service_id: serviceId,
         specialist_id: specialistId,
         starts_at: startsAt,
+        points,
       }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
@@ -568,7 +569,7 @@ export type BookCartItem = {
   gift_discount_percent: number;
 };
 
-export async function apiBookCart(items: BookCartItem[]): Promise<{
+export async function apiBookCart(items: BookCartItem[], points = 0): Promise<{
   status: number;
   data: { ok: boolean; order_id?: string; busy?: number[]; error?: string } | null;
 }> {
@@ -576,7 +577,7 @@ export async function apiBookCart(items: BookCartItem[]): Promise<{
     const res = await fetch(`${API}/api/book-cart`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ initData: initData(), items }),
+      body: JSON.stringify({ initData: initData(), items, points }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
   } catch {

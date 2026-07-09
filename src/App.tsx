@@ -638,6 +638,14 @@ function BookingScreen({
   const [booking, setBooking] = useState(false);
   const [result, setResult] = useState<{ startsAt: string; final: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null);
+  const [redeem, setRedeem] = useState(0);
+
+  useEffect(() => {
+    apiLoyalty().then((r) => {
+      if (r.status === 200 && r.data?.ok) setLoyalty(r.data);
+    });
+  }, []);
 
   useEffect(() => {
     fetchBookingContext(serviceId, specialistId).then(setCtx);
@@ -660,10 +668,10 @@ function BookingScreen({
     if (!slot) return;
     setBooking(true);
     setErr(null);
-    const r = await apiBook(serviceId, specialistId, slot);
+    const r = await apiBook(serviceId, specialistId, slot, redeem);
     setBooking(false);
     if (r.status === 200 && r.data?.ok) {
-      setResult({ startsAt: r.data.starts_at, final: r.data.final_price });
+      setResult({ startsAt: r.data.starts_at, final: r.data.money_due ?? r.data.final_price });
     } else if (r.status === 401) {
       setErr("Запись доступна только из Telegram.");
     } else if (r.status === 409) {
@@ -693,6 +701,13 @@ function BookingScreen({
   const full = price?.full_price ?? ctx?.basePrice ?? null;
   const discount = price?.discount_amount ?? 0;
   const finalP = price?.final_price ?? full;
+
+  // лимит списания баллов
+  const pv = loyalty?.point_value ?? 1;
+  const maxByPct = finalP != null ? Math.floor((finalP * (loyalty?.redeem_max_percent ?? 0)) / 100 / pv) : 0;
+  const maxRedeem = Math.max(0, Math.min(loyalty?.balance ?? 0, maxByPct));
+  const redeemClamped = Math.min(redeem, maxRedeem);
+  const moneyDue = finalP != null ? Math.max(0, finalP - redeemClamped * pv) : finalP;
 
   return (
     <div>
@@ -753,9 +768,42 @@ function BookingScreen({
               <span>−{fmtRub(discount)}</span>
             </div>
           )}
+          {redeemClamped > 0 && (
+            <div className="price-row discount">
+              <span>Оплата баллами ({redeemClamped})</span>
+              <span>−{fmtRub(redeemClamped * pv)}</span>
+            </div>
+          )}
           <div className="price-row total">
-            <span>К оплате</span>
-            <span>{fmtRub(finalP ?? full)}</span>
+            <span>К оплате{redeemClamped > 0 ? " деньгами" : ""}</span>
+            <span>{fmtRub(moneyDue ?? full)}</span>
+          </div>
+        </div>
+      )}
+
+      {maxRedeem > 0 && (
+        <div className="redeem-card">
+          <div className="redeem-head">
+            <span className="redeem-title">Списать баллы</span>
+            <span className="redeem-bal">Доступно: {loyalty?.balance ?? 0}</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={maxRedeem}
+            step={1}
+            value={redeemClamped}
+            onChange={(e) => setRedeem(Number(e.target.value))}
+            className="redeem-slider"
+          />
+          <div className="redeem-foot">
+            <span>{redeemClamped > 0 ? `Списываем ${redeemClamped} б. · −${fmtRub(redeemClamped * pv)}` : "Двигайте, чтобы применить баллы"}</span>
+            <button
+              className="redeem-max"
+              onClick={() => setRedeem(redeemClamped >= maxRedeem ? 0 : maxRedeem)}
+            >
+              {redeemClamped >= maxRedeem ? "Сбросить" : "Максимум"}
+            </button>
           </div>
         </div>
       )}
@@ -1691,8 +1739,24 @@ function ScheduleScreen({
   const [submitting, setSubmitting] = useState(false);
   const [orderDone, setOrderDone] = useState(false);
   const [orderErr, setOrderErr] = useState("");
+  const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null);
+  const [redeem, setRedeem] = useState(0);
+
+  useEffect(() => {
+    apiLoyalty().then((r) => {
+      if (r.status === 200 && r.data?.ok) setLoyalty(r.data);
+    });
+  }, []);
 
   const pos = idx < N ? positions[idx] : null;
+
+  // лимит списания баллов на весь заказ
+  const cartTotal = positions.reduce((s, p) => s + (chosen[p.key]?.final_price ?? 0), 0);
+  const pv = loyalty?.point_value ?? 1;
+  const maxByPct = Math.floor((cartTotal * (loyalty?.redeem_max_percent ?? 0)) / 100 / pv);
+  const maxRedeem = Math.max(0, Math.min(loyalty?.balance ?? 0, maxByPct));
+  const redeemClamped = Math.min(redeem, maxRedeem);
+  const moneyDue = Math.max(0, cartTotal - redeemClamped * pv);
   const resolvedSpec: ServiceMaster | null = pos
     ? pos.is_gift
       ? giftSpec[pos.key] ?? null
@@ -1768,7 +1832,7 @@ function ScheduleScreen({
         gift_discount_percent: p.gift_discount_percent,
       };
     });
-    const r = await apiBookCart(items);
+    const r = await apiBookCart(items, redeemClamped);
     setSubmitting(false);
     if (r.status === 200 && r.data?.ok) {
       setOrderDone(true);
@@ -1833,7 +1897,6 @@ function ScheduleScreen({
 
   // ---- СВОДКА ----
   if (idx >= N) {
-    const total = positions.reduce((s, p) => s + (chosen[p.key]?.final_price ?? 0), 0);
     return (
       <div>
         <button className="back-btn" onClick={() => setIdx(N - 1)}>‹ Назад</button>
@@ -1854,11 +1917,49 @@ function ScheduleScreen({
           );
         })}
         <div className="price-card">
+          <div className="price-row muted">
+            <span>Сумма</span>
+            <span>{fmtRub(cartTotal)}</span>
+          </div>
+          {redeemClamped > 0 && (
+            <div className="price-row discount">
+              <span>Оплата баллами ({redeemClamped})</span>
+              <span>−{fmtRub(redeemClamped * pv)}</span>
+            </div>
+          )}
           <div className="price-row total">
-            <span>К оплате</span>
-            <span>{fmtRub(total)}</span>
+            <span>К оплате{redeemClamped > 0 ? " деньгами" : ""}</span>
+            <span>{fmtRub(moneyDue)}</span>
           </div>
         </div>
+
+        {maxRedeem > 0 && (
+          <div className="redeem-card">
+            <div className="redeem-head">
+              <span className="redeem-title">Списать баллы</span>
+              <span className="redeem-bal">Доступно: {loyalty?.balance ?? 0}</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={maxRedeem}
+              step={1}
+              value={redeemClamped}
+              onChange={(e) => setRedeem(Number(e.target.value))}
+              className="redeem-slider"
+            />
+            <div className="redeem-foot">
+              <span>{redeemClamped > 0 ? `Списываем ${redeemClamped} б. · −${fmtRub(redeemClamped * pv)}` : "Двигайте, чтобы применить баллы"}</span>
+              <button
+                className="redeem-max"
+                onClick={() => setRedeem(redeemClamped >= maxRedeem ? 0 : maxRedeem)}
+              >
+                {redeemClamped >= maxRedeem ? "Сбросить" : "Максимум"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {orderErr && <div className="book-note" style={{ color: "#e03945" }}>{orderErr}</div>}
         <div className="book-bar">
           <button className="btn btn-primary" disabled={submitting} onClick={placeOrder}>
