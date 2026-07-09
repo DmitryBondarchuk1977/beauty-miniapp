@@ -4,6 +4,11 @@ interface TelegramBackButton {
   onClick: (cb: () => void) => void;
   offClick: (cb: () => void) => void;
 }
+interface TelegramCloudStorage {
+  getItem: (key: string, cb: (err: unknown, value: string | null) => void) => void;
+  setItem: (key: string, value: string, cb?: (err: unknown, ok: boolean) => void) => void;
+  removeItem: (key: string, cb?: (err: unknown, ok: boolean) => void) => void;
+}
 interface TelegramWebApp {
   ready: () => void;
   expand: () => void;
@@ -14,6 +19,7 @@ interface TelegramWebApp {
   };
   colorScheme?: "light" | "dark";
   BackButton?: TelegramBackButton;
+  CloudStorage?: TelegramCloudStorage;
 }
 interface Window {
   Telegram?: { WebApp: TelegramWebApp };

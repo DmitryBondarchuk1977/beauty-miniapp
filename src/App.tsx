@@ -47,6 +47,7 @@ import type {
   CartItem,
   CheckoutPosition,
 } from "./types";
+import { loadCart, saveCart, clearCart } from "./lib/cartStorage";
 
 const tg = window.Telegram?.WebApp;
 
@@ -66,6 +67,21 @@ export default function App() {
   const back = () => setStack((p) => (p.length > 1 ? p.slice(0, -1) : p));
 
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartLoaded, setCartLoaded] = useState(false);
+
+  // восстановление корзины при запуске (CloudStorage → localStorage)
+  useEffect(() => {
+    loadCart().then((c) => {
+      setCart(c);
+      setCartLoaded(true);
+    });
+  }, []);
+
+  // сохранение корзины при любом изменении (после первичной загрузки)
+  useEffect(() => {
+    if (cartLoaded) saveCart(cart);
+  }, [cart, cartLoaded]);
+
   const addToCart = (item: CartItem) =>
     setCart((p) =>
       p.some((x) => x.service_id === item.service_id && x.specialist_id === item.specialist_id)
@@ -158,7 +174,7 @@ export default function App() {
   else if (screen.name === "cart")
     content = <CartScreen cart={cart} onRemove={removeFromCart} onAdd={() => goTab("home")} onCheckout={startCheckout} />;
   else if (screen.name === "schedule")
-    content = <ScheduleScreen positions={checkout} onBack={back} onHome={() => { setCart([]); goTab("home"); }} />;
+    content = <ScheduleScreen positions={checkout} onBack={back} onHome={() => { setCart([]); clearCart(); goTab("home"); }} />;
   else
     content = (
       <BookingScreen
