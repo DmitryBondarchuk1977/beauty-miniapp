@@ -9,24 +9,47 @@ import type {
   Master,
 } from "../types";
 
+/* ---------- лёгкий in-memory кэш справочников (на сессию, TTL) ---------- */
+const CATALOG_TTL = 5 * 60 * 1000; // 5 минут
+type CacheEntry = { at: number; val: unknown };
+const _cache = new Map<string, CacheEntry>();
+
+function cached<T>(key: string, ttl: number, loader: () => Promise<T>): Promise<T> {
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.at < ttl) return Promise.resolve(hit.val as T);
+  return loader().then((val) => {
+    _cache.set(key, { at: Date.now(), val });
+    return val;
+  });
+}
+
+// сброс кэша каталога (напр. после действий, меняющих данные)
+export function clearCatalogCache() {
+  _cache.clear();
+}
+
 export async function fetchCategories(): Promise<Category[]> {
-  const { data } = await supabase
-    .from("categories")
-    .select("id, name, image_url")
-    .is("parent_id", null)
-    .eq("is_active", true)
-    .order("sort_order")
-    .order("name");
-  return (data as Category[]) ?? [];
+  return cached("categories", CATALOG_TTL, async () => {
+    const { data } = await supabase
+      .from("categories")
+      .select("id, name, image_url")
+      .is("parent_id", null)
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("name");
+    return (data as Category[]) ?? [];
+  });
 }
 
 export async function fetchPromos(): Promise<Promo[]> {
-  const { data } = await supabase
-    .from("promotions")
-    .select("id, title, banner_url, kind, discount_type, discount_value")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false });
-  return (data as Promo[]) ?? [];
+  return cached("promos", CATALOG_TTL, async () => {
+    const { data } = await supabase
+      .from("promotions")
+      .select("id, title, banner_url, kind, discount_type, discount_value")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+    return (data as Promo[]) ?? [];
+  });
 }
 
 type SpecRow = {
@@ -38,22 +61,24 @@ type SpecRow = {
 };
 
 export async function fetchSpecialists(): Promise<SpecialistCard[]> {
-  const { data } = await supabase
-    .from("specialists")
-    .select("id, full_name, photo_url, rating, specialist_services ( price )")
-    .eq("is_active", true)
-    .order("sort_order")
-    .order("created_at");
+  return cached("specialists", CATALOG_TTL, async () => {
+    const { data } = await supabase
+      .from("specialists")
+      .select("id, full_name, photo_url, rating, specialist_services ( price )")
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("created_at");
 
-  return ((data as SpecRow[]) ?? []).map((s) => {
-    const prices = (s.specialist_services ?? []).map((x) => x.price);
-    return {
-      id: s.id,
-      full_name: s.full_name,
-      photo_url: s.photo_url,
-      rating: s.rating,
-      price_from: prices.length ? Math.min(...prices) : null,
-    };
+    return ((data as SpecRow[]) ?? []).map((s) => {
+      const prices = (s.specialist_services ?? []).map((x) => x.price);
+      return {
+        id: s.id,
+        full_name: s.full_name,
+        photo_url: s.photo_url,
+        rating: s.rating,
+        price_from: prices.length ? Math.min(...prices) : null,
+      };
+    });
   });
 }
 
@@ -70,65 +95,67 @@ type SvcRow = {
 export async function fetchCategoryView(
   topId: string,
 ): Promise<{ chips: Chip[]; services: ServiceCard[] }> {
-  const { data: catsData } = await supabase
-    .from("categories")
-    .select("id, parent_id, name, image_url")
-    .eq("is_active", true);
-  const cats = (catsData as CatRow[]) ?? [];
-  const byId = new Map(cats.map((c) => [c.id, c]));
+  return cached(`categoryView:${topId}`, CATALOG_TTL, async () => {
+    const { data: catsData } = await supabase
+      .from("categories")
+      .select("id, parent_id, name, image_url")
+      .eq("is_active", true);
+    const cats = (catsData as CatRow[]) ?? [];
+    const byId = new Map(cats.map((c) => [c.id, c]));
 
-  // потомки верхней категории
-  const descendants = new Set<string>();
-  const collect = (parent: string) => {
-    for (const c of cats) {
-      if (c.parent_id === parent && !descendants.has(c.id)) {
-        descendants.add(c.id);
-        collect(c.id);
+    // потомки верхней категории
+    const descendants = new Set<string>();
+    const collect = (parent: string) => {
+      for (const c of cats) {
+        if (c.parent_id === parent && !descendants.has(c.id)) {
+          descendants.add(c.id);
+          collect(c.id);
+        }
       }
-    }
-  };
-  collect(topId);
-
-  const chips: Chip[] = cats
-    .filter((c) => c.parent_id === topId)
-    .map((c) => ({ id: c.id, name: c.name, image_url: c.image_url }));
-
-  // ветка верхнего уровня (прямой потомок topId) для услуги
-  const branchOf = (catId: string): string | null => {
-    let cur: string | undefined = catId;
-    let guard = 0;
-    while (cur && guard++ < 10) {
-      const node = byId.get(cur);
-      if (!node) return null;
-      if (node.parent_id === topId) return node.id;
-      cur = node.parent_id ?? undefined;
-    }
-    return null;
-  };
-
-  const ids = [...descendants];
-  if (ids.length === 0) return { chips, services: [] };
-
-  const { data: svcData } = await supabase
-    .from("services")
-    .select("id, name, image_url, duration_min, category_id, specialist_services ( price )")
-    .in("category_id", ids)
-    .eq("is_active", true)
-    .order("name");
-
-  const services: ServiceCard[] = ((svcData as SvcRow[]) ?? []).map((s) => {
-    const prices = (s.specialist_services ?? []).map((x) => x.price);
-    return {
-      id: s.id,
-      name: s.name,
-      image_url: s.image_url,
-      duration_min: s.duration_min,
-      price_from: prices.length ? Math.min(...prices) : null,
-      branch_id: branchOf(s.category_id),
     };
-  });
+    collect(topId);
 
-  return { chips, services };
+    const chips: Chip[] = cats
+      .filter((c) => c.parent_id === topId)
+      .map((c) => ({ id: c.id, name: c.name, image_url: c.image_url }));
+
+    // ветка верхнего уровня (прямой потомок topId) для услуги
+    const branchOf = (catId: string): string | null => {
+      let cur: string | undefined = catId;
+      let guard = 0;
+      while (cur && guard++ < 10) {
+        const node = byId.get(cur);
+        if (!node) return null;
+        if (node.parent_id === topId) return node.id;
+        cur = node.parent_id ?? undefined;
+      }
+      return null;
+    };
+
+    const ids = [...descendants];
+    if (ids.length === 0) return { chips, services: [] };
+
+    const { data: svcData } = await supabase
+      .from("services")
+      .select("id, name, image_url, duration_min, category_id, specialist_services ( price )")
+      .in("category_id", ids)
+      .eq("is_active", true)
+      .order("name");
+
+    const services: ServiceCard[] = ((svcData as SvcRow[]) ?? []).map((s) => {
+      const prices = (s.specialist_services ?? []).map((x) => x.price);
+      return {
+        id: s.id,
+        name: s.name,
+        image_url: s.image_url,
+        duration_min: s.duration_min,
+        price_from: prices.length ? Math.min(...prices) : null,
+        branch_id: branchOf(s.category_id),
+      };
+    });
+
+    return { chips, services };
+  });
 }
 
 type MasterRow = {
@@ -145,30 +172,32 @@ type MasterRow = {
 export async function fetchServiceDetail(
   serviceId: string,
 ): Promise<{ service: ServiceDetail; masters: Master[] } | null> {
-  const { data: svc } = await supabase
-    .from("services")
-    .select("id, name, image_url, duration_min, description")
-    .eq("id", serviceId)
-    .maybeSingle();
-  if (!svc) return null;
+  return cached(`serviceDetail:${serviceId}`, CATALOG_TTL, async () => {
+    const { data: svc } = await supabase
+      .from("services")
+      .select("id, name, image_url, duration_min, description")
+      .eq("id", serviceId)
+      .maybeSingle();
+    if (!svc) return null;
 
-  const { data: ms } = await supabase
-    .from("specialist_services")
-    .select("price, specialist:specialists ( id, full_name, photo_url, rating, is_active )")
-    .eq("service_id", serviceId);
+    const { data: ms } = await supabase
+      .from("specialist_services")
+      .select("price, specialist:specialists ( id, full_name, photo_url, rating, is_active )")
+      .eq("service_id", serviceId);
 
-  const masters: Master[] = ((ms as unknown as MasterRow[]) ?? [])
-    .filter((m) => m.specialist?.is_active)
-    .map((m) => ({
-      id: m.specialist!.id,
-      full_name: m.specialist!.full_name,
-      photo_url: m.specialist!.photo_url,
-      rating: m.specialist!.rating,
-      price: m.price,
-    }))
-    .sort((a, b) => a.price - b.price);
+    const masters: Master[] = ((ms as unknown as MasterRow[]) ?? [])
+      .filter((m) => m.specialist?.is_active)
+      .map((m) => ({
+        id: m.specialist!.id,
+        full_name: m.specialist!.full_name,
+        photo_url: m.specialist!.photo_url,
+        rating: m.specialist!.rating,
+        price: m.price,
+      }))
+      .sort((a, b) => a.price - b.price);
 
-  return { service: svc as ServiceDetail, masters };
+    return { service: svc as ServiceDetail, masters };
+  });
 }
 
 /* ---------- запись ---------- */
@@ -296,55 +325,57 @@ export async function fetchSpecialistDetail(id: string): Promise<{
   reviews: Review[];
   reviewCount: number;
 }> {
-  const [spRes, ssRes, wRes, rRes] = await Promise.all([
-    supabase
-      .from("specialists")
-      .select("id, full_name, photo_url, bio, experience_years, rating")
-      .eq("id", id)
-      .maybeSingle(),
-    supabase
-      .from("specialist_services")
-      .select("price, service:services ( id, name, duration_min, is_active )")
-      .eq("specialist_id", id),
-    supabase
-      .from("specialist_works")
-      .select("image_url, caption")
-      .eq("specialist_id", id)
-      .order("sort_order"),
-    supabase
-      .from("reviews")
-      .select("specialist_rating, comment, created_at, client_name, service:services ( name )")
-      .eq("specialist_id", id)
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(20),
-  ]);
+  return cached(`specialistDetail:${id}`, CATALOG_TTL, async () => {
+    const [spRes, ssRes, wRes, rRes] = await Promise.all([
+      supabase
+        .from("specialists")
+        .select("id, full_name, photo_url, bio, experience_years, rating")
+        .eq("id", id)
+        .maybeSingle(),
+      supabase
+        .from("specialist_services")
+        .select("price, service:services ( id, name, duration_min, is_active )")
+        .eq("specialist_id", id),
+      supabase
+        .from("specialist_works")
+        .select("image_url, caption")
+        .eq("specialist_id", id)
+        .order("sort_order"),
+      supabase
+        .from("reviews")
+        .select("specialist_rating, comment, created_at, client_name, service:services ( name )")
+        .eq("specialist_id", id)
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
 
-  const services: SpecServiceItem[] = ((ssRes.data as unknown as SSItem[]) ?? [])
-    .filter((r) => r.service?.is_active)
-    .map((r) => ({
-      id: r.service!.id,
-      name: r.service!.name,
-      duration_min: r.service!.duration_min,
-      price: r.price,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+    const services: SpecServiceItem[] = ((ssRes.data as unknown as SSItem[]) ?? [])
+      .filter((r) => r.service?.is_active)
+      .map((r) => ({
+        id: r.service!.id,
+        name: r.service!.name,
+        duration_min: r.service!.duration_min,
+        price: r.price,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ru"));
 
-  const reviews: Review[] = ((rRes.data as unknown as RevRow[]) ?? []).map((r) => ({
-    rating: r.specialist_rating,
-    comment: r.comment,
-    created_at: r.created_at,
-    client_name: r.client_name?.trim() || "Клиент",
-    service_name: r.service?.name ?? null,
-  }));
+    const reviews: Review[] = ((rRes.data as unknown as RevRow[]) ?? []).map((r) => ({
+      rating: r.specialist_rating,
+      comment: r.comment,
+      created_at: r.created_at,
+      client_name: r.client_name?.trim() || "Клиент",
+      service_name: r.service?.name ?? null,
+    }));
 
-  return {
-    specialist: (spRes.data as SpecialistFull) ?? null,
-    services,
-    works: (wRes.data as Work[]) ?? [],
-    reviews,
-    reviewCount: reviews.length,
-  };
+    return {
+      specialist: (spRes.data as SpecialistFull) ?? null,
+      services,
+      works: (wRes.data as Work[]) ?? [],
+      reviews,
+      reviewCount: reviews.length,
+    };
+  });
 }
 
 /* ---------- корзина: расчёт ---------- */
@@ -543,21 +574,23 @@ export async function apiMyReviews(): Promise<{
 export type ServiceMaster = { id: string; full_name: string; photo_url: string | null; rating: number; price: number };
 
 export async function fetchServiceMasters(serviceId: string): Promise<ServiceMaster[]> {
-  const { data } = await supabase
-    .from("specialist_services")
-    .select("price, specialist:specialists ( id, full_name, photo_url, rating, is_active )")
-    .eq("service_id", serviceId);
-  type Row = { price: number; specialist: { id: string; full_name: string; photo_url: string | null; rating: number; is_active: boolean } | null };
-  return ((data as unknown as Row[]) ?? [])
-    .filter((r) => r.specialist?.is_active)
-    .map((r) => ({
-      id: r.specialist!.id,
-      full_name: r.specialist!.full_name,
-      photo_url: r.specialist!.photo_url,
-      rating: r.specialist!.rating,
-      price: r.price,
-    }))
-    .sort((a, b) => b.rating - a.rating);
+  return cached(`serviceMasters:${serviceId}`, CATALOG_TTL, async () => {
+    const { data } = await supabase
+      .from("specialist_services")
+      .select("price, specialist:specialists ( id, full_name, photo_url, rating, is_active )")
+      .eq("service_id", serviceId);
+    type Row = { price: number; specialist: { id: string; full_name: string; photo_url: string | null; rating: number; is_active: boolean } | null };
+    return ((data as unknown as Row[]) ?? [])
+      .filter((r) => r.specialist?.is_active)
+      .map((r) => ({
+        id: r.specialist!.id,
+        full_name: r.specialist!.full_name,
+        photo_url: r.specialist!.photo_url,
+        rating: r.specialist!.rating,
+        price: r.price,
+      }))
+      .sort((a, b) => b.rating - a.rating);
+  });
 }
 
 /* ---------- оформление заказа (корзина) ---------- */
