@@ -255,7 +255,7 @@ export async function apiPrice(
   }
 }
 
-export async function apiBook(serviceId: string, specialistId: string, startsAt: string, points = 0, cert = 0) {
+export async function apiBook(serviceId: string, specialistId: string, startsAt: string, points = 0, cert = 0, certId: string | null = null) {
   try {
     const res = await fetch(`${API}/api/book`, {
       method: "POST",
@@ -267,6 +267,7 @@ export async function apiBook(serviceId: string, specialistId: string, startsAt:
         starts_at: startsAt,
         points,
         cert,
+        cert_id: certId,
       }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
@@ -603,7 +604,7 @@ export type BookCartItem = {
   gift_discount_percent: number;
 };
 
-export async function apiBookCart(items: BookCartItem[], points = 0, cert = 0): Promise<{
+export async function apiBookCart(items: BookCartItem[], points = 0, cert = 0, certId: string | null = null): Promise<{
   status: number;
   data: { ok: boolean; order_id?: string; busy?: number[]; error?: string } | null;
 }> {
@@ -611,7 +612,7 @@ export async function apiBookCart(items: BookCartItem[], points = 0, cert = 0): 
     const res = await fetch(`${API}/api/book-cart`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ initData: initData(), items, points, cert }),
+      body: JSON.stringify({ initData: initData(), items, points, cert, cert_id: certId }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
   } catch {
@@ -647,7 +648,8 @@ export async function apiLoyalty(): Promise<{ status: number; data: LoyaltyData 
 }
 
 /* ---------- сертификаты ---------- */
-export type CertData = { ok: boolean; balance: number; transactions: { kind: string; amount: number; note: string | null; created_at: string }[] };
+export type CertItem = { id: string; code: string; balance: number; status: string; expires_at: string | null; usable: boolean };
+export type CertData = { ok: boolean; balance: number; certificates: CertItem[] };
 
 export async function apiCertificate(): Promise<{ status: number; data: CertData | null }> {
   try {

@@ -483,3 +483,27 @@ img { max-width: 100%; display: block; }
 .cert-activate .ca-msg { margin-top: 8px; font-size: 13px; font-weight: 600; }
 .cert-activate .ca-msg.ok { color: #1a9e5e; }
 .cert-activate .ca-msg.err { color: #e03945; }
+
+/* ---- список сертификатов в профиле ---- */
+.cert-list-profile { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
+.cert-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border-radius: 14px; padding: 12px 14px; color: #fff;
+  background: linear-gradient(135deg, #7a5cc2, #4a2d8a);
+  box-shadow: 0 4px 14px rgba(74, 45, 138, .22);
+}
+.cert-item.off { background: #b9adc9; box-shadow: none; }
+.cert-item .ci-code { font-weight: 700; font-size: 14px; font-family: ui-monospace, monospace; letter-spacing: .5px; }
+.cert-item .ci-exp { font-size: 12px; opacity: .9; margin-top: 2px; }
+.cert-item .ci-bal { font-size: 18px; font-weight: 800; white-space: nowrap; }
+
+/* ---- выбор сертификата при записи ---- */
+.cert-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; }
+.cert-opt {
+  display: flex; align-items: center; gap: 8px; text-align: left; cursor: pointer;
+  border: 1.5px solid #e3d6f0; background: #faf7fe; border-radius: 12px; padding: 10px 12px;
+}
+.cert-opt.on { border-color: #7a5cc2; background: #f1e9fb; }
+.cert-opt .co-code { font-family: ui-monospace, monospace; font-weight: 700; font-size: 13px; letter-spacing: .5px; }
+.cert-opt .co-bal { font-weight: 800; font-size: 14px; color: #4a2d8a; }
+.cert-opt .co-exp { margin-left: auto; font-size: 11px; color: var(--hint, #8b7f86); }

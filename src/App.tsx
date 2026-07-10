@@ -36,6 +36,7 @@ import {
   type LoyaltyTx,
   apiCertificate,
   apiActivateCertificate,
+  type CertItem,
 } from "./lib/api";
 import type {
   Category,
@@ -277,6 +278,71 @@ function IconUser() {
 }
 
 /* ---------- helpers ---------- */
+function certDate(iso: string) {
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(iso));
+}
+
+function CertPicker({
+  certs,
+  maxMoney,
+  certId,
+  amount,
+  onChange,
+}: {
+  certs: CertItem[];
+  maxMoney: number;
+  certId: string | null;
+  amount: number;
+  onChange: (certId: string | null, amount: number) => void;
+}) {
+  if (certs.length === 0) return null;
+  const selected = certs.find((c) => c.id === certId) ?? null;
+  const maxCert = selected ? Math.max(0, Math.min(selected.balance, maxMoney)) : 0;
+  const clamped = Math.min(amount, maxCert);
+  return (
+    <div className="redeem-card">
+      <div className="redeem-head">
+        <span className="redeem-title">🎟 Оплатить сертификатом</span>
+      </div>
+      <div className="cert-list">
+        {certs.map((c) => {
+          const on = c.id === certId;
+          return (
+            <button
+              key={c.id}
+              className={`cert-opt ${on ? "on" : ""}`}
+              onClick={() => (on ? onChange(null, 0) : onChange(c.id, Math.min(c.balance, maxMoney)))}
+            >
+              <span className="co-code">{c.code}</span>
+              <span className="co-bal">{fmtRub(c.balance)}</span>
+              <span className="co-exp">{c.expires_at ? `до ${certDate(c.expires_at)}` : "бессрочно"}</span>
+            </button>
+          );
+        })}
+      </div>
+      {selected && maxCert > 0 && (
+        <>
+          <input
+            type="range"
+            min={0}
+            max={maxCert}
+            step={50}
+            value={clamped}
+            onChange={(e) => onChange(selected.id, Number(e.target.value))}
+            className="redeem-slider"
+          />
+          <div className="redeem-foot">
+            <span>{clamped > 0 ? `Оплата сертификатом: −${fmtRub(clamped)}` : "Двигайте, чтобы применить"}</span>
+            <button className="redeem-max" onClick={() => onChange(selected.id, clamped >= maxCert ? 0 : maxCert)}>
+              {clamped >= maxCert ? "Сбросить" : "Максимум"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function imgSrc(url: string | null | undefined, w: number, h?: number): string | undefined {
   if (!url) return undefined;
   const marker = "/storage/v1/object/public/";
@@ -669,7 +735,8 @@ function BookingScreen({
   const [err, setErr] = useState<string | null>(null);
   const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null);
   const [redeem, setRedeem] = useState(0);
-  const [certBal, setCertBal] = useState(0);
+  const [certs, setCerts] = useState<CertItem[]>([]);
+  const [certId, setCertId] = useState<string | null>(null);
   const [certRedeem, setCertRedeem] = useState(0);
 
   useEffect(() => {
@@ -677,7 +744,7 @@ function BookingScreen({
       if (r.status === 200 && r.data?.ok) setLoyalty(r.data);
     });
     apiCertificate().then((r) => {
-      if (r.status === 200 && r.data?.ok) setCertBal(r.data.balance);
+      if (r.status === 200 && r.data?.ok) setCerts(r.data.certificates.filter((c) => c.usable));
     });
   }, []);
 
@@ -702,7 +769,7 @@ function BookingScreen({
     if (!slot) return;
     setBooking(true);
     setErr(null);
-    const r = await apiBook(serviceId, specialistId, slot, redeem, certRedeem);
+    const r = await apiBook(serviceId, specialistId, slot, redeem, certRedeem, certId);
     setBooking(false);
     if (r.status === 200 && r.data?.ok) {
       setResult({ startsAt: r.data.starts_at, final: r.data.money_due ?? r.data.final_price });
@@ -744,7 +811,8 @@ function BookingScreen({
   const maxRedeem = Math.max(0, Math.min(balancePts, maxByPct));
   const redeemClamped = Math.min(redeem, maxRedeem);
   const afterPoints = finalP != null ? Math.max(0, finalP - redeemClamped * pv) : 0;
-  const maxCert = Math.max(0, Math.min(certBal, afterPoints));
+  const selectedCert = certs.find((c) => c.id === certId) ?? null;
+  const maxCert = selectedCert ? Math.max(0, Math.min(selectedCert.balance, afterPoints)) : 0;
   const certClamped = Math.min(certRedeem, maxCert);
   const moneyDue = finalP != null ? Math.max(0, afterPoints - certClamped) : finalP;
 
@@ -853,32 +921,16 @@ function BookingScreen({
         </div>
       )}
 
-      {maxCert > 0 && (
-        <div className="redeem-card">
-          <div className="redeem-head">
-            <span className="redeem-title">🎟 Оплатить сертификатом</span>
-            <span className="redeem-bal">Доступно: {fmtRub(certBal)}</span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={maxCert}
-            step={50}
-            value={certClamped}
-            onChange={(e) => setCertRedeem(Number(e.target.value))}
-            className="redeem-slider"
-          />
-          <div className="redeem-foot">
-            <span>{certClamped > 0 ? `Оплата сертификатом: −${fmtRub(certClamped)}` : "Двигайте, чтобы применить сертификат"}</span>
-            <button
-              className="redeem-max"
-              onClick={() => setCertRedeem(certClamped >= maxCert ? 0 : maxCert)}
-            >
-              {certClamped >= maxCert ? "Сбросить" : "Максимум"}
-            </button>
-          </div>
-        </div>
-      )}
+      <CertPicker
+        certs={certs}
+        maxMoney={afterPoints}
+        certId={certId}
+        amount={certRedeem}
+        onChange={(id, amt) => {
+          setCertId(id);
+          setCertRedeem(amt);
+        }}
+      />
 
       {err && <div className="book-note" style={{ color: "#e03945" }}>{err}</div>}
 
@@ -1224,18 +1276,22 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const name = [u?.first_name, u?.last_name].filter(Boolean).join(" ") || "Гость";
 
   const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null);
-  const [certBal, setCertBal] = useState(0);
+  const [certs, setCerts] = useState<CertItem[]>([]);
   const [code, setCode] = useState("");
   const [activating, setActivating] = useState(false);
   const [certMsg, setCertMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  function loadCerts() {
+    apiCertificate().then((r) => {
+      if (r.status === 200 && r.data?.ok) setCerts(r.data.certificates);
+    });
+  }
 
   useEffect(() => {
     apiLoyalty().then((r) => {
       if (r.status === 200 && r.data?.ok) setLoyalty(r.data);
     });
-    apiCertificate().then((r) => {
-      if (r.status === 200 && r.data?.ok) setCertBal(r.data.balance);
-    });
+    loadCerts();
   }, []);
 
   async function activate() {
@@ -1246,9 +1302,9 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
     const r = await apiActivateCertificate(c);
     setActivating(false);
     if (r.status === 200 && r.data?.ok) {
-      setCertBal(r.data.balance ?? certBal);
       setCode("");
       setCertMsg({ ok: true, text: `Сертификат активирован: +${r.data.added ?? 0} ₽` });
+      loadCerts();
     } else {
       const err = r.data?.error;
       const text =
@@ -1256,6 +1312,7 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         err === "already_used" ? "Этот сертификат уже активирован" :
         err === "already_yours" ? "Этот сертификат уже на вашем счету" :
         err === "disabled" ? "Сертификат отключён" :
+        err === "expired" ? "Срок действия сертификата истёк" :
         err === "empty_code" ? "Введите код" :
         "Не удалось активировать";
       setCertMsg({ ok: false, text });
@@ -1286,11 +1343,25 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         </button>
       )}
 
-      {certBal > 0 && (
-        <div className="cert-card">
-          <div className="cc-label">🎟 Сертификат</div>
-          <div className="cc-balance">{fmtRub(certBal)}</div>
-          <div className="cc-hint">Можно оплатить услуги при записи</div>
+      {certs.length > 0 && (
+        <div className="cert-list-profile">
+          {certs.map((c) => (
+            <div key={c.id} className={`cert-item ${c.usable ? "" : "off"}`}>
+              <div className="ci-left">
+                <div className="ci-code">🎟 {c.code}</div>
+                <div className="ci-exp">
+                  {c.status === "expired"
+                    ? "Просрочен"
+                    : c.status === "used"
+                    ? "Использован"
+                    : c.expires_at
+                    ? `Действует до ${certDate(c.expires_at)}`
+                    : "Бессрочный"}
+                </div>
+              </div>
+              <div className="ci-bal">{fmtRub(c.balance)}</div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -1873,7 +1944,8 @@ function ScheduleScreen({
   const [orderErr, setOrderErr] = useState("");
   const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null);
   const [redeem, setRedeem] = useState(0);
-  const [certBal, setCertBal] = useState(0);
+  const [certs, setCerts] = useState<CertItem[]>([]);
+  const [certId, setCertId] = useState<string | null>(null);
   const [certRedeem, setCertRedeem] = useState(0);
 
   useEffect(() => {
@@ -1881,7 +1953,7 @@ function ScheduleScreen({
       if (r.status === 200 && r.data?.ok) setLoyalty(r.data);
     });
     apiCertificate().then((r) => {
-      if (r.status === 200 && r.data?.ok) setCertBal(r.data.balance);
+      if (r.status === 200 && r.data?.ok) setCerts(r.data.certificates.filter((c) => c.usable));
     });
   }, []);
 
@@ -1896,7 +1968,8 @@ function ScheduleScreen({
   const maxRedeem = Math.max(0, Math.min(balancePts, maxByPct));
   const redeemClamped = Math.min(redeem, maxRedeem);
   const afterPoints = Math.max(0, cartTotal - redeemClamped * pv);
-  const maxCert = Math.max(0, Math.min(certBal, afterPoints));
+  const selectedCert = certs.find((c) => c.id === certId) ?? null;
+  const maxCert = selectedCert ? Math.max(0, Math.min(selectedCert.balance, afterPoints)) : 0;
   const certClamped = Math.min(certRedeem, maxCert);
   const moneyDue = Math.max(0, afterPoints - certClamped);
   const resolvedSpec: ServiceMaster | null = pos
@@ -1974,7 +2047,7 @@ function ScheduleScreen({
         gift_discount_percent: p.gift_discount_percent,
       };
     });
-    const r = await apiBookCart(items, redeemClamped, certClamped);
+    const r = await apiBookCart(items, redeemClamped, certClamped, certId);
     setSubmitting(false);
     if (r.status === 200 && r.data?.ok) {
       setOrderDone(true);
@@ -2108,32 +2181,16 @@ function ScheduleScreen({
           </div>
         )}
 
-        {maxCert > 0 && (
-          <div className="redeem-card">
-            <div className="redeem-head">
-              <span className="redeem-title">🎟 Оплатить сертификатом</span>
-              <span className="redeem-bal">Доступно: {fmtRub(certBal)}</span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={maxCert}
-              step={50}
-              value={certClamped}
-              onChange={(e) => setCertRedeem(Number(e.target.value))}
-              className="redeem-slider"
-            />
-            <div className="redeem-foot">
-              <span>{certClamped > 0 ? `Оплата сертификатом: −${fmtRub(certClamped)}` : "Двигайте, чтобы применить сертификат"}</span>
-              <button
-                className="redeem-max"
-                onClick={() => setCertRedeem(certClamped >= maxCert ? 0 : maxCert)}
-              >
-                {certClamped >= maxCert ? "Сбросить" : "Максимум"}
-              </button>
-            </div>
-          </div>
-        )}
+        <CertPicker
+          certs={certs}
+          maxMoney={afterPoints}
+          certId={certId}
+          amount={certRedeem}
+          onChange={(id, amt) => {
+            setCertId(id);
+            setCertRedeem(amt);
+          }}
+        />
 
         {orderErr && <div className="book-note" style={{ color: "#e03945" }}>{orderErr}</div>}
         <div className="book-bar">
