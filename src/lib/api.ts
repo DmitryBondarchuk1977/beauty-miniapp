@@ -255,7 +255,7 @@ export async function apiPrice(
   }
 }
 
-export async function apiBook(serviceId: string, specialistId: string, startsAt: string, points = 0) {
+export async function apiBook(serviceId: string, specialistId: string, startsAt: string, points = 0, cert = 0) {
   try {
     const res = await fetch(`${API}/api/book`, {
       method: "POST",
@@ -266,6 +266,7 @@ export async function apiBook(serviceId: string, specialistId: string, startsAt:
         specialist_id: specialistId,
         starts_at: startsAt,
         points,
+        cert,
       }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
@@ -602,7 +603,7 @@ export type BookCartItem = {
   gift_discount_percent: number;
 };
 
-export async function apiBookCart(items: BookCartItem[], points = 0): Promise<{
+export async function apiBookCart(items: BookCartItem[], points = 0, cert = 0): Promise<{
   status: number;
   data: { ok: boolean; order_id?: string; busy?: number[]; error?: string } | null;
 }> {
@@ -610,7 +611,7 @@ export async function apiBookCart(items: BookCartItem[], points = 0): Promise<{
     const res = await fetch(`${API}/api/book-cart`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ initData: initData(), items, points }),
+      body: JSON.stringify({ initData: initData(), items, points, cert }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
   } catch {
@@ -639,6 +640,34 @@ export type LoyaltyData = {
 export async function apiLoyalty(): Promise<{ status: number; data: LoyaltyData | null }> {
   try {
     const res = await fetch(`${API}/api/loyalty?initData=${encodeURIComponent(initData())}`);
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+/* ---------- сертификаты ---------- */
+export type CertData = { ok: boolean; balance: number; transactions: { kind: string; amount: number; note: string | null; created_at: string }[] };
+
+export async function apiCertificate(): Promise<{ status: number; data: CertData | null }> {
+  try {
+    const res = await fetch(`${API}/api/certificate?initData=${encodeURIComponent(initData())}`);
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiActivateCertificate(code: string): Promise<{
+  status: number;
+  data: { ok: boolean; added?: number; balance?: number; error?: string } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/certificate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), code }),
+    });
     return { status: res.status, data: await res.json().catch(() => null) };
   } catch {
     return { status: 0, data: null };

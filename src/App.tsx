@@ -34,6 +34,8 @@ import {
   apiLoyalty,
   type LoyaltyData,
   type LoyaltyTx,
+  apiCertificate,
+  apiActivateCertificate,
 } from "./lib/api";
 import type {
   Category,
@@ -667,10 +669,15 @@ function BookingScreen({
   const [err, setErr] = useState<string | null>(null);
   const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null);
   const [redeem, setRedeem] = useState(0);
+  const [certBal, setCertBal] = useState(0);
+  const [certRedeem, setCertRedeem] = useState(0);
 
   useEffect(() => {
     apiLoyalty().then((r) => {
       if (r.status === 200 && r.data?.ok) setLoyalty(r.data);
+    });
+    apiCertificate().then((r) => {
+      if (r.status === 200 && r.data?.ok) setCertBal(r.data.balance);
     });
   }, []);
 
@@ -695,7 +702,7 @@ function BookingScreen({
     if (!slot) return;
     setBooking(true);
     setErr(null);
-    const r = await apiBook(serviceId, specialistId, slot, redeem);
+    const r = await apiBook(serviceId, specialistId, slot, redeem, certRedeem);
     setBooking(false);
     if (r.status === 200 && r.data?.ok) {
       setResult({ startsAt: r.data.starts_at, final: r.data.money_due ?? r.data.final_price });
@@ -736,7 +743,10 @@ function BookingScreen({
   const maxByPct = finalP != null ? Math.floor((finalP * redeemMaxPct) / 100 / pv) : 0;
   const maxRedeem = Math.max(0, Math.min(balancePts, maxByPct));
   const redeemClamped = Math.min(redeem, maxRedeem);
-  const moneyDue = finalP != null ? Math.max(0, finalP - redeemClamped * pv) : finalP;
+  const afterPoints = finalP != null ? Math.max(0, finalP - redeemClamped * pv) : 0;
+  const maxCert = Math.max(0, Math.min(certBal, afterPoints));
+  const certClamped = Math.min(certRedeem, maxCert);
+  const moneyDue = finalP != null ? Math.max(0, afterPoints - certClamped) : finalP;
 
   return (
     <div>
@@ -803,8 +813,14 @@ function BookingScreen({
               <span>−{fmtRub(redeemClamped * pv)}</span>
             </div>
           )}
+          {certClamped > 0 && (
+            <div className="price-row discount">
+              <span>Оплата сертификатом</span>
+              <span>−{fmtRub(certClamped)}</span>
+            </div>
+          )}
           <div className="price-row total">
-            <span>К оплате{redeemClamped > 0 ? " деньгами" : ""}</span>
+            <span>К оплате{redeemClamped > 0 || certClamped > 0 ? " деньгами" : ""}</span>
             <span>{fmtRub(moneyDue ?? full)}</span>
           </div>
         </div>
@@ -832,6 +848,33 @@ function BookingScreen({
               onClick={() => setRedeem(redeemClamped >= maxRedeem ? 0 : maxRedeem)}
             >
               {redeemClamped >= maxRedeem ? "Сбросить" : "Максимум"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {maxCert > 0 && (
+        <div className="redeem-card">
+          <div className="redeem-head">
+            <span className="redeem-title">🎟 Оплатить сертификатом</span>
+            <span className="redeem-bal">Доступно: {fmtRub(certBal)}</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={maxCert}
+            step={50}
+            value={certClamped}
+            onChange={(e) => setCertRedeem(Number(e.target.value))}
+            className="redeem-slider"
+          />
+          <div className="redeem-foot">
+            <span>{certClamped > 0 ? `Оплата сертификатом: −${fmtRub(certClamped)}` : "Двигайте, чтобы применить сертификат"}</span>
+            <button
+              className="redeem-max"
+              onClick={() => setCertRedeem(certClamped >= maxCert ? 0 : maxCert)}
+            >
+              {certClamped >= maxCert ? "Сбросить" : "Максимум"}
             </button>
           </div>
         </div>
@@ -1181,11 +1224,43 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const name = [u?.first_name, u?.last_name].filter(Boolean).join(" ") || "Гость";
 
   const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null);
+  const [certBal, setCertBal] = useState(0);
+  const [code, setCode] = useState("");
+  const [activating, setActivating] = useState(false);
+  const [certMsg, setCertMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   useEffect(() => {
     apiLoyalty().then((r) => {
       if (r.status === 200 && r.data?.ok) setLoyalty(r.data);
     });
+    apiCertificate().then((r) => {
+      if (r.status === 200 && r.data?.ok) setCertBal(r.data.balance);
+    });
   }, []);
+
+  async function activate() {
+    const c = code.trim();
+    if (!c) return;
+    setActivating(true);
+    setCertMsg(null);
+    const r = await apiActivateCertificate(c);
+    setActivating(false);
+    if (r.status === 200 && r.data?.ok) {
+      setCertBal(r.data.balance ?? certBal);
+      setCode("");
+      setCertMsg({ ok: true, text: `Сертификат активирован: +${r.data.added ?? 0} ₽` });
+    } else {
+      const err = r.data?.error;
+      const text =
+        err === "not_found" ? "Код не найден" :
+        err === "already_used" ? "Этот сертификат уже активирован" :
+        err === "already_yours" ? "Этот сертификат уже на вашем счету" :
+        err === "disabled" ? "Сертификат отключён" :
+        err === "empty_code" ? "Введите код" :
+        "Не удалось активировать";
+      setCertMsg({ ok: false, text });
+    }
+  }
 
   return (
     <div>
@@ -1210,6 +1285,34 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
           <span className="lc-go">›</span>
         </button>
       )}
+
+      {certBal > 0 && (
+        <div className="cert-card">
+          <div className="cc-label">🎟 Сертификат</div>
+          <div className="cc-balance">{fmtRub(certBal)}</div>
+          <div className="cc-hint">Можно оплатить услуги при записи</div>
+        </div>
+      )}
+
+      <div className="cert-activate">
+        <div className="ca-title">Активировать сертификат</div>
+        <div className="ca-row">
+          <input
+            className="ca-input"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="BS-XXXX-XXXX"
+            autoCapitalize="characters"
+            autoCorrect="off"
+          />
+          <button className="ca-btn" disabled={activating || !code.trim()} onClick={activate}>
+            {activating ? "…" : "Активировать"}
+          </button>
+        </div>
+        {certMsg && (
+          <div className={`ca-msg ${certMsg.ok ? "ok" : "err"}`}>{certMsg.text}</div>
+        )}
+      </div>
 
       <div className="menu-list">
         <button className="menu-row" onClick={() => onNavigate({ name: "favorites" })}>
@@ -1770,10 +1873,15 @@ function ScheduleScreen({
   const [orderErr, setOrderErr] = useState("");
   const [loyalty, setLoyalty] = useState<LoyaltyData | null>(null);
   const [redeem, setRedeem] = useState(0);
+  const [certBal, setCertBal] = useState(0);
+  const [certRedeem, setCertRedeem] = useState(0);
 
   useEffect(() => {
     apiLoyalty().then((r) => {
       if (r.status === 200 && r.data?.ok) setLoyalty(r.data);
+    });
+    apiCertificate().then((r) => {
+      if (r.status === 200 && r.data?.ok) setCertBal(r.data.balance);
     });
   }, []);
 
@@ -1787,7 +1895,10 @@ function ScheduleScreen({
   const maxByPct = Math.floor((cartTotal * redeemMaxPct) / 100 / pv);
   const maxRedeem = Math.max(0, Math.min(balancePts, maxByPct));
   const redeemClamped = Math.min(redeem, maxRedeem);
-  const moneyDue = Math.max(0, cartTotal - redeemClamped * pv);
+  const afterPoints = Math.max(0, cartTotal - redeemClamped * pv);
+  const maxCert = Math.max(0, Math.min(certBal, afterPoints));
+  const certClamped = Math.min(certRedeem, maxCert);
+  const moneyDue = Math.max(0, afterPoints - certClamped);
   const resolvedSpec: ServiceMaster | null = pos
     ? pos.is_gift
       ? giftSpec[pos.key] ?? null
@@ -1863,7 +1974,7 @@ function ScheduleScreen({
         gift_discount_percent: p.gift_discount_percent,
       };
     });
-    const r = await apiBookCart(items, redeemClamped);
+    const r = await apiBookCart(items, redeemClamped, certClamped);
     setSubmitting(false);
     if (r.status === 200 && r.data?.ok) {
       setOrderDone(true);
@@ -1958,8 +2069,14 @@ function ScheduleScreen({
               <span>−{fmtRub(redeemClamped * pv)}</span>
             </div>
           )}
+          {certClamped > 0 && (
+            <div className="price-row discount">
+              <span>Оплата сертификатом</span>
+              <span>−{fmtRub(certClamped)}</span>
+            </div>
+          )}
           <div className="price-row total">
-            <span>К оплате{redeemClamped > 0 ? " деньгами" : ""}</span>
+            <span>К оплате{redeemClamped > 0 || certClamped > 0 ? " деньгами" : ""}</span>
             <span>{fmtRub(moneyDue)}</span>
           </div>
         </div>
@@ -1986,6 +2103,33 @@ function ScheduleScreen({
                 onClick={() => setRedeem(redeemClamped >= maxRedeem ? 0 : maxRedeem)}
               >
                 {redeemClamped >= maxRedeem ? "Сбросить" : "Максимум"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {maxCert > 0 && (
+          <div className="redeem-card">
+            <div className="redeem-head">
+              <span className="redeem-title">🎟 Оплатить сертификатом</span>
+              <span className="redeem-bal">Доступно: {fmtRub(certBal)}</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={maxCert}
+              step={50}
+              value={certClamped}
+              onChange={(e) => setCertRedeem(Number(e.target.value))}
+              className="redeem-slider"
+            />
+            <div className="redeem-foot">
+              <span>{certClamped > 0 ? `Оплата сертификатом: −${fmtRub(certClamped)}` : "Двигайте, чтобы применить сертификат"}</span>
+              <button
+                className="redeem-max"
+                onClick={() => setCertRedeem(certClamped >= maxCert ? 0 : maxCert)}
+              >
+                {certClamped >= maxCert ? "Сбросить" : "Максимум"}
               </button>
             </div>
           </div>
