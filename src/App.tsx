@@ -38,6 +38,9 @@ import {
   apiActivateCertificate,
   type CertItem,
   apiUnsubscribe,
+  apiRescheduleStart,
+  apiRescheduleCancel,
+  type ActiveReschedule,
 } from "./lib/api";
 import type {
   Category,
@@ -1118,13 +1121,16 @@ function BookingsScreen({
   onBrowse: () => void;
 }) {
   const [data, setData] = useState<{ upcoming: MyBooking[]; past: MyBooking[] } | null>(null);
+  const [active, setActive] = useState<ActiveReschedule | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
   const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
+  function load() {
     apiMyBookings().then((r) => {
       if (r.status === 200 && r.data?.ok) {
         setData({ upcoming: r.data.upcoming, past: r.data.past });
+        setActive(r.data.active_reschedule ?? null);
         setState("ok");
       } else if (r.status === 401) {
         setMsg("Записи доступны только из Telegram.");
@@ -1134,7 +1140,32 @@ function BookingsScreen({
         setState("error");
       }
     });
-  }, []);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function startReschedule(id: string) {
+    setBusy(true);
+    const r = await apiRescheduleStart(id);
+    setBusy(false);
+    if (r.status === 200 && r.data?.ok) {
+      onBrowse(); // отправляем клиента собирать новую запись
+    } else {
+      const e = r.data?.error;
+      alert(
+        e === "too_late" ? "Перенести можно не позже чем за 2 часа до визита. Позвоните в салон."
+        : e === "wrong_status" ? "Эту запись перенести нельзя."
+        : "Не удалось начать перенос.",
+      );
+    }
+  }
+
+  async function cancelReschedule(id: string) {
+    setBusy(true);
+    await apiRescheduleCancel(id);
+    setBusy(false);
+    load();
+  }
 
   if (state === "loading") {
     return (
@@ -1176,8 +1207,25 @@ function BookingsScreen({
       </div>
       <div className="bk-sub">{b.specialist}</div>
       <div className="bk-when" style={{ textTransform: "capitalize" }}>{fullDateTime(b.starts_at)}</div>
-      {upcoming && b.can_cancel && (
-        <button className="mini-btn ghost bk-act" onClick={() => onOpenCancel(b.id)}>Отменить запись</button>
+      {upcoming && (b.can_cancel || b.can_reschedule) && (
+        <div className="bk-actions">
+          {b.can_reschedule && (
+            <button className="mini-btn bk-act" disabled={busy} onClick={() => startReschedule(b.id)}>
+              Перенести
+            </button>
+          )}
+          {b.can_cancel && (
+            <button className="mini-btn ghost bk-act" onClick={() => onOpenCancel(b.id)}>Отменить запись</button>
+          )}
+        </div>
+      )}
+      {upcoming && b.rescheduling && (
+        <div className="bk-resched">
+          <span>Идёт перенос — оформите новую запись</span>
+          <button className="mini-btn ghost" disabled={busy} onClick={() => cancelReschedule(b.id)}>
+            Отменить перенос
+          </button>
+        </div>
       )}
       {!upcoming && b.can_review && (
         b.reviewed ? (
@@ -1192,6 +1240,20 @@ function BookingsScreen({
   return (
     <div>
       <div className="sect-title" style={{ marginTop: 0 }}>Мои записи</div>
+      {active && (
+        <div className="resched-banner">
+          <div className="rb-title">🔄 Идёт перенос записи</div>
+          <div className="rb-text">
+            «{active.service}» — выберите новое время и оформите запись. Старая отменится автоматически.
+          </div>
+          <div className="rb-actions">
+            <button className="mini-btn" onClick={onBrowse}>Выбрать новое время</button>
+            <button className="mini-btn ghost" disabled={busy} onClick={() => cancelReschedule(active.booking_id)}>
+              Отменить перенос
+            </button>
+          </div>
+        </div>
+      )}
       {data!.upcoming.length > 0 && (
         <>
           <div className="bk-group">Предстоящие</div>

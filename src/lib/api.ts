@@ -488,13 +488,17 @@ export type MyBooking = {
   service: string;
   specialist: string;
   can_cancel: boolean;
+  can_reschedule: boolean;
+  rescheduling: boolean;
   can_review: boolean;
   reviewed: boolean;
 };
 
+export type ActiveReschedule = { booking_id: string; service: string; starts_at: string };
+
 export async function apiMyBookings(): Promise<{
   status: number;
-  data: { ok: boolean; upcoming: MyBooking[]; past: MyBooking[] } | null;
+  data: { ok: boolean; upcoming: MyBooking[]; past: MyBooking[]; active_reschedule: ActiveReschedule | null } | null;
 }> {
   try {
     const res = await fetch(`${API}/api/my-bookings`, {
@@ -696,6 +700,40 @@ export async function apiUnsubscribe(broadcastId: string | null): Promise<{
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ initData: initData(), broadcast_id: broadcastId }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+
+/* ---------- перенос записи ---------- */
+export async function apiRescheduleStart(bookingId: string): Promise<{
+  status: number;
+  data: { ok: boolean; error?: string; orig_starts_at?: string; max_forward_days?: number; expire_pending_minutes?: number } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/reschedule-start`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), booking_id: bookingId }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiRescheduleCancel(bookingId: string): Promise<{
+  status: number;
+  data: { ok: boolean; error?: string } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/reschedule-cancel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), booking_id: bookingId }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
   } catch {
