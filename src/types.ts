@@ -62,6 +62,7 @@ export type Screen =
   | { name: "review"; bookingId: string }
   | { name: "cancel"; bookingId: string }
   | { name: "unsub"; broadcastId: string | null }
+  | { name: "reschedule"; bookingId: string; serviceId: string; specialistId: string; origStartsAt: string }
   | { name: "cart" }
   | { name: "schedule" }
   | { name: "booking"; serviceId: string; specialistId: string };

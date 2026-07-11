@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useMemo, type ReactNode } from "react";
 import {
   fetchCategories,
   fetchPromos,
@@ -40,6 +40,7 @@ import {
   apiUnsubscribe,
   apiRescheduleStart,
   apiRescheduleCancel,
+  apiRescheduleConfirm,
   type ActiveReschedule,
 } from "./lib/api";
 import type {
@@ -159,7 +160,7 @@ export default function App() {
   let content: ReactNode;
   if (screen.name === "home") content = <Home onNavigate={push} />;
   else if (screen.name === "bookings")
-    content = <BookingsScreen onOpenReview={(id) => push({ name: "review", bookingId: id })} onOpenCancel={(id) => push({ name: "cancel", bookingId: id })} onBrowse={() => goTab("home")} />;
+    content = <BookingsScreen onOpenReview={(id) => push({ name: "review", bookingId: id })} onOpenCancel={(id) => push({ name: "cancel", bookingId: id })} onBrowse={() => goTab("home")} onOpenReschedule={(b) => push({ name: "reschedule", bookingId: b.id, serviceId: b.service_id, specialistId: b.specialist_id, origStartsAt: b.starts_at })} />;
   else if (screen.name === "profile")
     content = <ProfileScreen onNavigate={push} />;
   else if (screen.name === "favorites")
@@ -182,6 +183,17 @@ export default function App() {
     content = <CancelScreen bookingId={screen.bookingId} onDone={() => goTab("bookings")} onBack={back} />;
   else if (screen.name === "unsub")
     content = <UnsubScreen broadcastId={screen.broadcastId} onHome={() => goTab("home")} />;
+  else if (screen.name === "reschedule")
+    content = (
+      <RescheduleScreen
+        bookingId={screen.bookingId}
+        serviceId={screen.serviceId}
+        specialistId={screen.specialistId}
+        origStartsAt={screen.origStartsAt}
+        onDone={() => goTab("bookings")}
+        onBack={back}
+      />
+    );
   else if (screen.name === "cart")
     content = <CartScreen cart={cart} onRemove={removeFromCart} onAdd={() => goTab("home")} onCheckout={startCheckout} />;
   else if (screen.name === "schedule")
@@ -1115,10 +1127,12 @@ function BookingsScreen({
   onOpenReview,
   onOpenCancel,
   onBrowse,
+  onOpenReschedule,
 }: {
   onOpenReview: (id: string) => void;
   onOpenCancel: (id: string) => void;
   onBrowse: () => void;
+  onOpenReschedule: (b: { id: string; service_id: string; specialist_id: string; starts_at: string }) => void;
 }) {
   const [data, setData] = useState<{ upcoming: MyBooking[]; past: MyBooking[] } | null>(null);
   const [active, setActive] = useState<ActiveReschedule | null>(null);
@@ -1144,12 +1158,17 @@ function BookingsScreen({
 
   useEffect(() => { load(); }, []);
 
-  async function startReschedule(id: string) {
+  async function startReschedule(b: MyBooking) {
     setBusy(true);
-    const r = await apiRescheduleStart(id);
+    const r = await apiRescheduleStart(b.id);
     setBusy(false);
     if (r.status === 200 && r.data?.ok) {
-      onBrowse(); // отправляем клиента собирать новую запись
+      onOpenReschedule({
+        id: b.id,
+        service_id: b.service_id,
+        specialist_id: b.specialist_id,
+        starts_at: r.data.orig_starts_at ?? b.starts_at,
+      });
     } else {
       const e = r.data?.error;
       alert(
@@ -1210,7 +1229,7 @@ function BookingsScreen({
       {upcoming && (b.can_cancel || b.can_reschedule) && (
         <div className="bk-actions">
           {b.can_reschedule && (
-            <button className="mini-btn bk-act" disabled={busy} onClick={() => startReschedule(b.id)}>
+            <button className="mini-btn bk-act" disabled={busy} onClick={() => startReschedule(b)}>
               Перенести
             </button>
           )}
@@ -1247,7 +1266,19 @@ function BookingsScreen({
             «{active.service}» — выберите новое время и оформите запись. Старая отменится автоматически.
           </div>
           <div className="rb-actions">
-            <button className="mini-btn" onClick={onBrowse}>Выбрать новое время</button>
+            <button
+              className="mini-btn"
+              onClick={() =>
+                onOpenReschedule({
+                  id: active.booking_id,
+                  service_id: active.service_id,
+                  specialist_id: active.specialist_id,
+                  starts_at: active.starts_at,
+                })
+              }
+            >
+              Выбрать новое время
+            </button>
             <button className="mini-btn ghost" disabled={busy} onClick={() => cancelReschedule(active.booking_id)}>
               Отменить перенос
             </button>
@@ -1266,6 +1297,157 @@ function BookingsScreen({
           {data!.past.map((b) => card(b, false))}
         </>
       )}
+    </div>
+  );
+}
+
+
+/* ---------- RESCHEDULE (перенос записи: мастер + дата + время) ---------- */
+function RescheduleScreen({
+  bookingId,
+  serviceId,
+  specialistId,
+  origStartsAt,
+  onDone,
+  onBack,
+}: {
+  bookingId: string;
+  serviceId: string;
+  specialistId: string;
+  origStartsAt: string;
+  onDone: () => void;
+  onBack: () => void;
+}) {
+  const days = useMemo(() => nextDays(30), []);
+  const [masters, setMasters] = useState<ServiceMaster[] | null>(null);
+  const [specId, setSpecId] = useState(specialistId);
+  const [date, setDate] = useState(days[0].dateStr);
+  const [slots, setSlots] = useState<{ slot_start: string; slot_end: string }[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slot, setSlot] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [serviceName, setServiceName] = useState("");
+
+  useEffect(() => {
+    fetchServiceDetail(serviceId).then((r) => {
+      if (r) setServiceName(r.service.name);
+    });
+    fetchServiceMasters(serviceId).then(setMasters);
+  }, [serviceId]);
+
+  useEffect(() => {
+    setSlotsLoading(true);
+    setSlot(null);
+    fetchSlots(specId, serviceId, date).then((s) => {
+      setSlots(s);
+      setSlotsLoading(false);
+    });
+  }, [specId, serviceId, date]);
+
+  async function confirm() {
+    if (!slot) return;
+    setSaving(true);
+    setErr(null);
+    const r = await apiRescheduleConfirm(bookingId, specId, slot);
+    setSaving(false);
+    if (r.status === 200 && r.data?.ok) {
+      onDone();
+    } else {
+      const e = r.data?.error;
+      setErr(
+        e === "slot_taken" ? "Это время только что заняли. Выберите другое."
+        : e === "reschedule_too_far" ? "Слишком далеко: перенести можно не более чем на 30 дней вперёд."
+        : e === "reschedule_expired" ? "Перенос истёк. Начните заново из «Моих записей»."
+        : "Не удалось перенести. Попробуйте ещё раз.",
+      );
+    }
+  }
+
+  const selected = masters?.find((m) => m.id === specId) ?? null;
+
+  return (
+    <div>
+      <button className="back-btn" onClick={onBack}>‹ Назад</button>
+
+      <div className="rs-head">
+        <div className="rs-title">Перенос записи</div>
+        <div className="rs-svc">{serviceName || "Услуга"}</div>
+        <div className="rs-old">Сейчас: <b style={{ textTransform: "capitalize" }}>{fullDateTime(origStartsAt)}</b></div>
+      </div>
+
+      <div className="sect-title">Мастер</div>
+      {!masters ? (
+        <div className="skeleton" style={{ height: 64, borderRadius: 14 }} />
+      ) : (
+        <div className="rs-masters">
+          {masters.map((m) => (
+            <button
+              key={m.id}
+              className={`rs-master ${m.id === specId ? "on" : ""}`}
+              onClick={() => setSpecId(m.id)}
+            >
+              {m.photo_url ? (
+                <img loading="lazy" decoding="async" src={imgSrc(m.photo_url, 120, 120)} alt={m.full_name} />
+              ) : (
+                <span className="initials">{initials(m.full_name)}</span>
+              )}
+              <span className="rs-mname">{m.full_name}</span>
+              <span className="rs-mprice">{fmtRub(m.price)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="sect-title">Дата</div>
+      <div className="days">
+        {days.map((d) => (
+          <button
+            key={d.dateStr}
+            className={`day ${d.dateStr === date ? "on" : ""}`}
+            onClick={() => setDate(d.dateStr)}
+          >
+            <span className="dw">{d.dow}</span>
+            <span className="dd">{d.dom}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="sect-title">Время</div>
+      {slotsLoading ? (
+        <div className="skeleton" style={{ height: 44, borderRadius: 12 }} />
+      ) : slots.length === 0 ? (
+        <div className="empty">На этот день свободного времени нет. Выберите другую дату.</div>
+      ) : (
+        <div className="slots">
+          {slots.map((s) => (
+            <button
+              key={s.slot_start}
+              className={`slot ${slot === s.slot_start ? "on" : ""}`}
+              onClick={() => setSlot(s.slot_start)}
+            >
+              {new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(s.slot_start))}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selected && slot && (
+        <div className="price-card" style={{ marginTop: 12 }}>
+          <div className="price-row total">
+            <span>Новая стоимость</span>
+            <span>{fmtRub(selected.price)}</span>
+          </div>
+        </div>
+      )}
+
+      {err && <div className="book-note" style={{ color: "#e03945" }}>{err}</div>}
+
+      <div className="book-bar">
+        <button className="btn btn-primary" disabled={!slot || saving} onClick={confirm}>
+          {saving ? "Переносим…" : "Подтвердить перенос"}
+        </button>
+      </div>
     </div>
   );
 }

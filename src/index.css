@@ -530,3 +530,23 @@ img { max-width: 100%; display: block; }
 .resched-banner .rb-title { font-weight: 800; font-size: 14px; color: #8a5a00; }
 .resched-banner .rb-text { font-size: 12px; color: #9a6b00; margin-top: 4px; line-height: 1.4; }
 .resched-banner .rb-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+/* ---- экран переноса ---- */
+.rs-head { padding: 4px 0 8px; }
+.rs-title { font-size: 20px; font-weight: 800; color: var(--text, #1a1a1a); }
+.rs-svc { font-size: 15px; font-weight: 700; margin-top: 6px; color: var(--text, #1a1a1a); }
+.rs-old { font-size: 13px; color: var(--hint, #8b7f86); margin-top: 4px; }
+.rs-masters { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px; }
+.rs-master {
+  flex: 0 0 auto; width: 96px; padding: 10px 8px; border-radius: 14px;
+  background: var(--card, #fff); border: 1.5px solid var(--line, #eee);
+  display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer;
+}
+.rs-master.on { border-color: var(--accent, #cd8882); background: #fdf4f3; }
+.rs-master img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+.rs-master .initials {
+  width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: #f0e6e4; color: #8b6d68; font-weight: 700; font-size: 14px;
+}
+.rs-mname { font-size: 11px; font-weight: 600; text-align: center; line-height: 1.2; color: var(--text, #1a1a1a); }
+.rs-mprice { font-size: 11px; color: var(--hint, #8b7f86); }

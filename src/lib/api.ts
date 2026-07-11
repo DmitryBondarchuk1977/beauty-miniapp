@@ -485,6 +485,8 @@ export type MyBooking = {
   status: string;
   starts_at: string;
   ends_at: string;
+  service_id: string;
+  specialist_id: string;
   service: string;
   specialist: string;
   can_cancel: boolean;
@@ -494,7 +496,13 @@ export type MyBooking = {
   reviewed: boolean;
 };
 
-export type ActiveReschedule = { booking_id: string; service: string; starts_at: string };
+export type ActiveReschedule = {
+  booking_id: string;
+  service: string;
+  service_id: string;
+  specialist_id: string;
+  starts_at: string;
+};
 
 export async function apiMyBookings(): Promise<{
   status: number;
@@ -734,6 +742,31 @@ export async function apiRescheduleCancel(bookingId: string): Promise<{
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ initData: initData(), booking_id: bookingId }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiRescheduleConfirm(
+  bookingId: string,
+  specialistId: string,
+  startsAt: string,
+): Promise<{
+  status: number;
+  data: { ok: boolean; error?: string; starts_at?: string; final_price?: number } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/reschedule-confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        initData: initData(),
+        booking_id: bookingId,
+        specialist_id: specialistId,
+        starts_at: startsAt,
+      }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
   } catch {
