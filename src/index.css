@@ -507,3 +507,9 @@ img { max-width: 100%; display: block; }
 .cert-opt .co-code { font-family: ui-monospace, monospace; font-weight: 700; font-size: 13px; letter-spacing: .5px; }
 .cert-opt .co-bal { font-weight: 800; font-size: 14px; color: #4a2d8a; }
 .cert-opt .co-exp { margin-left: auto; font-size: 11px; color: var(--hint, #8b7f86); }
+
+/* ---- экран отписки ---- */
+.unsub-wrap { padding: 40px 20px; text-align: center; }
+.unsub-emoji { font-size: 52px; margin-bottom: 8px; }
+.unsub-title { font-size: 20px; font-weight: 800; margin-bottom: 10px; color: var(--text, #1a1a1a); }
+.unsub-body { font-size: 14px; color: var(--hint, #8b7f86); margin-bottom: 24px; line-height: 1.5; }

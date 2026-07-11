@@ -675,3 +675,20 @@ export async function apiActivateCertificate(code: string): Promise<{
     return { status: 0, data: null };
   }
 }
+
+/* ---------- отписка от промо-рассылок ---------- */
+export async function apiUnsubscribe(broadcastId: string | null): Promise<{
+  status: number;
+  data: { ok: boolean; error?: string } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/unsubscribe`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), broadcast_id: broadcastId }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

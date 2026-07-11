@@ -37,6 +37,7 @@ import {
   apiCertificate,
   apiActivateCertificate,
   type CertItem,
+  apiUnsubscribe,
 } from "./lib/api";
 import type {
   Category,
@@ -60,9 +61,11 @@ export default function App() {
     const cid = params.get("confirm");
     const rid = params.get("review");
     const xid = params.get("cancel");
+    const uid = params.get("unsub");
     if (cid) return [{ name: "home" }, { name: "confirm", bookingId: cid }];
     if (rid) return [{ name: "home" }, { name: "review", bookingId: rid }];
     if (xid) return [{ name: "home" }, { name: "cancel", bookingId: xid }];
+    if (uid !== null) return [{ name: "home" }, { name: "unsub", broadcastId: uid || null }];
     return [{ name: "home" }];
   });
   const screen = stack[stack.length - 1];
@@ -174,6 +177,8 @@ export default function App() {
     content = <ReviewScreen bookingId={screen.bookingId} onHome={() => goTab("bookings")} />;
   else if (screen.name === "cancel")
     content = <CancelScreen bookingId={screen.bookingId} onDone={() => goTab("bookings")} onBack={back} />;
+  else if (screen.name === "unsub")
+    content = <UnsubScreen broadcastId={screen.broadcastId} onHome={() => goTab("home")} />;
   else if (screen.name === "cart")
     content = <CartScreen cart={cart} onRemove={removeFromCart} onAdd={() => goTab("home")} onCheckout={startCheckout} />;
   else if (screen.name === "schedule")
@@ -1197,6 +1202,39 @@ function BookingsScreen({
         <>
           <div className="bk-group">Прошедшие</div>
           {data!.past.map((b) => card(b, false))}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------- UNSUBSCRIBE (отписка от промо-рассылок) ---------- */
+function UnsubScreen({ broadcastId, onHome }: { broadcastId: string | null; onHome: () => void }) {
+  const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
+  useEffect(() => {
+    apiUnsubscribe(broadcastId).then((r) => {
+      setStatus(r.status === 200 && r.data?.ok ? "ok" : "err");
+    });
+  }, [broadcastId]);
+
+  return (
+    <div className="unsub-wrap">
+      {status === "loading" && <div className="unsub-body">Отписываем…</div>}
+      {status === "ok" && (
+        <>
+          <div className="unsub-emoji">💜</div>
+          <div className="unsub-title">Вы отписаны от рассылок</div>
+          <div className="unsub-body">
+            Больше не будем присылать промо-сообщения. Уведомления по вашим записям продолжат приходить.
+          </div>
+          <button className="btn btn-primary" onClick={onHome}>На главную</button>
+        </>
+      )}
+      {status === "err" && (
+        <>
+          <div className="unsub-title">Не получилось</div>
+          <div className="unsub-body">Попробуйте ещё раз позже.</div>
+          <button className="btn btn-primary" onClick={onHome}>На главную</button>
         </>
       )}
     </div>
