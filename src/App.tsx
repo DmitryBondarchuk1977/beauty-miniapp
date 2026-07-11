@@ -2029,7 +2029,11 @@ function ScheduleScreen({
     if (!pos || !resolvedSpec) return;
     setSlotsLoading(true);
     setSlot(null);
-    fetchSlots(resolvedSpec.id, pos.service_id, date).then((s) => {
+    // уже выбранные в корзине слоты (у любых мастеров) — клиент не может быть в двух местах сразу
+    const busy = positions
+      .filter((p) => p.key !== pos.key && chosen[p.key])
+      .map((p) => ({ starts_at: chosen[p.key]!.starts_at, ends_at: chosen[p.key]!.ends_at }));
+    fetchSlots(resolvedSpec.id, pos.service_id, date, busy).then((s) => {
       setSlots(s);
       setSlotsLoading(false);
     });

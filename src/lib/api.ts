@@ -222,11 +222,21 @@ export async function fetchBookingContext(serviceId: string, specialistId: strin
   };
 }
 
-export async function fetchSlots(specialistId: string, serviceId: string, dateStr: string) {
+export async function fetchSlots(
+  specialistId: string,
+  serviceId: string,
+  dateStr: string,
+  busyRanges: { starts_at: string; ends_at: string }[] = [],
+) {
+  // формат tstzrange для Postgres: '[start,end)'
+  const p_busy_ranges =
+    busyRanges.length > 0 ? busyRanges.map((r) => `[${r.starts_at},${r.ends_at})`) : null;
+
   const { data, error } = await supabase.rpc("get_available_slots", {
     p_specialist_id: specialistId,
     p_service_id: serviceId,
     p_date: dateStr,
+    p_busy_ranges,
   });
   if (error) return [];
   return (data as { slot_start: string; slot_end: string }[]) ?? [];
