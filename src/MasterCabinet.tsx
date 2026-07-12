@@ -294,11 +294,14 @@ function MasterScheduleTab() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [days, setDays] = useState<Record<string, MasterDay> | null>(null);
+  const [byDay, setByDay] = useState<Record<string, MasterBooking[]>>({});
+  const [openDay, setOpenDay] = useState<string | null>(null);
 
   const from = `${year}-${String(month + 1).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month + 1, 0).getDate();
   const to = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
+  // график
   useEffect(() => {
     const key = `m:schedule:${from}`;
     const c = cacheGet<Record<string, MasterDay>>(key, 5 * 60_000);
@@ -321,6 +324,33 @@ function MasterScheduleTab() {
     });
   }, [from, to]);
 
+  // записи за тот же месяц — чтобы показать, в какие дни и во сколько приём
+  useEffect(() => {
+    const key = `m:month-bookings:${from}`;
+    const group = (list: MasterBooking[]) => {
+      const map: Record<string, MasterBooking[]> = {};
+      for (const b of list) {
+        const d = b.starts_at.slice(0, 10);
+        if (!map[d]) map[d] = [];
+        map[d].push(b);
+      }
+      return map;
+    };
+
+    const c = cacheGet<MasterBooking[]>(key, 60_000);
+    if (c) {
+      setByDay(group(c.value));
+      if (c.fresh) return;
+    }
+
+    apiMasterBookings(from, to).then((r) => {
+      if (r.status === 200 && r.data?.ok) {
+        setByDay(group(r.data.bookings));
+        cacheSet(key, r.data.bookings);
+      }
+    });
+  }, [from, to]);
+
   const cells = useMemo(() => {
     const first = new Date(year, month, 1);
     const lead = (first.getDay() + 6) % 7;
@@ -339,6 +369,10 @@ function MasterScheduleTab() {
 
   const workCount = days ? Object.values(days).filter((d) => d.day_type === "work").length : 0;
   const todayKey = iso(now);
+
+  // активные записи (не отменённые) — их и показываем
+  const liveOf = (key: string) =>
+    (byDay[key] ?? []).filter((b) => b.status !== "cancelled");
 
   return (
     <div>
@@ -367,8 +401,17 @@ function MasterScheduleTab() {
               const day = days[key];
               const cls =
                 day?.day_type === "work" ? "work" : day?.day_type === "off" ? "off" : "none";
+              const cnt = liveOf(key).length;
+              const clickable = cnt > 0;
+
               return (
-                <div key={key} className={`mc-day ${cls} ${key === todayKey ? "today" : ""}`}>
+                <button
+                  key={key}
+                  type="button"
+                  disabled={!clickable}
+                  onClick={() => clickable && setOpenDay(key)}
+                  className={`mc-day ${cls} ${key === todayKey ? "today" : ""} ${clickable ? "has" : ""}`}
+                >
                   <div className="mc-dnum">{d}</div>
                   {day?.day_type === "work" && day.start_time && (
                     <div className="mc-dtime">
@@ -376,7 +419,8 @@ function MasterScheduleTab() {
                     </div>
                   )}
                   {day?.day_type === "off" && <div className="mc-dtime">вых</div>}
-                </div>
+                  {cnt > 0 && <span className="mc-cnt">{cnt}</span>}
+                </button>
               );
             })}
       </div>
@@ -393,7 +437,71 @@ function MasterScheduleTab() {
         </span>
       </div>
 
-      <div className="book-note">График составляет администратор. Изменения — через салон.</div>
+      <div className="book-note">
+        Цифра на дне — количество записей. Нажмите, чтобы посмотреть время.
+        График составляет администратор.
+      </div>
+
+      {openDay && (
+        <DaySheet day={openDay} items={liveOf(openDay)} onClose={() => setOpenDay(null)} />
+      )}
+    </div>
+  );
+}
+
+/* попап со списком записей на день */
+function DaySheet({
+  day,
+  items,
+  onClose,
+}: {
+  day: string;
+  items: MasterBooking[];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [onClose]);
+
+  return (
+    <div className="mc-overlay" onClick={onClose}>
+      <div className="mc-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="mc-sheet-grip" />
+        <div className="mc-sheet-title" style={{ textTransform: "capitalize" }}>
+          {dayLabel(items[0]?.starts_at ?? `${day}T12:00:00Z`)}
+        </div>
+        <div className="mc-sheet-sub">
+          {items.length} {items.length === 1 ? "запись" : items.length < 5 ? "записи" : "записей"}
+        </div>
+
+        <div className="mc-sheet-list">
+          {items.map((b) => {
+            const st = STATUS_LABEL[b.status] ?? { text: b.status, cls: "" };
+            return (
+              <div key={b.id} className="mc-sheet-row">
+                <div className="mc-sheet-time">
+                  {slotTime(b.starts_at)}
+                  <span>{slotTime(b.ends_at)}</span>
+                </div>
+                <div className="mc-sheet-info">
+                  <div className="mc-sheet-svc">{b.service_name}</div>
+                  <div className="mc-sheet-cli">{b.client_name}</div>
+                  <div className="mc-sheet-meta">
+                    <span className={`mc-badge ${st.cls}`}>{st.text}</span>
+                    <span className="mc-price">{fmtRub(b.price)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <button className="btn btn-primary" onClick={onClose}>
+          Закрыть
+        </button>
+      </div>
     </div>
   );
 }

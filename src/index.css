@@ -689,3 +689,63 @@ img { max-width: 100%; display: block; }
 }
 .ml-code:focus { border-color: var(--accent); }
 .mc-day-sk { height: 52px; width: 100%; border-radius: 8px; }
+
+/* плитка календаря = <button>: снимаем дефолты браузера */
+.mc-day {
+  position: relative;
+  appearance: none; -webkit-appearance: none;
+  font: inherit; color: inherit; text-align: center;
+  cursor: default;
+}
+.mc-day:disabled { opacity: 1; }
+.mc-day.has { cursor: pointer; }
+.mc-day.has:active { transform: scale(.96); }
+.mc-cnt {
+  position: absolute; top: 2px; right: 2px;
+  min-width: 14px; height: 14px; padding: 0 3px;
+  border-radius: 7px; background: var(--accent); color: #fff;
+  font-size: 9px; font-weight: 700; line-height: 14px; text-align: center;
+}
+
+/* попап со списком записей на день */
+.mc-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: mc-fade .16s ease;
+}
+@keyframes mc-fade { from { opacity: 0 } to { opacity: 1 } }
+
+.mc-sheet {
+  width: 100%; max-width: 680px;
+  background: var(--bg); border-radius: 18px 18px 0 0;
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+  max-height: 78vh; overflow-y: auto;
+  animation: mc-up .2s ease;
+}
+@keyframes mc-up { from { transform: translateY(20px) } to { transform: translateY(0) } }
+
+.mc-sheet-grip {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--line); margin: 4px auto 12px;
+}
+.mc-sheet-title { font-size: 16px; font-weight: 800; color: var(--text); }
+.mc-sheet-sub { font-size: 12px; color: var(--hint); margin-top: 2px; }
+
+.mc-sheet-list { margin: 14px 0; display: flex; flex-direction: column; gap: 8px; }
+.mc-sheet-row {
+  display: flex; gap: 12px; padding: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+}
+.mc-sheet-time {
+  flex: 0 0 auto; width: 46px; text-align: center;
+  font-size: 14px; font-weight: 800; color: var(--text); line-height: 1.25;
+}
+.mc-sheet-time span {
+  display: block; font-size: 11px; font-weight: 500; color: var(--hint);
+}
+.mc-sheet-info { flex: 1; min-width: 0; }
+.mc-sheet-svc { font-size: 14px; font-weight: 700; color: var(--text); }
+.mc-sheet-cli { font-size: 12px; color: var(--hint); margin-top: 1px; }
+.mc-sheet-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.mc-sheet-meta .mc-price { margin-left: auto; }
