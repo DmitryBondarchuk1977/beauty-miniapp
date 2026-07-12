@@ -42,8 +42,10 @@ import {
   apiRescheduleCancel,
   apiRescheduleConfirm,
   apiMasterWhoami,
+  fetchSpecialistDocs,
   type ActiveReschedule,
   type MasterMe,
+  type PublicDoc,
 } from "./lib/api";
 import MasterCabinet from "./MasterCabinet";
 import MasterLinkScreen from "./MasterLinkScreen";
@@ -1052,8 +1054,11 @@ function SpecialistScreen({
     reviewCount: number;
   } | null>(null);
 
+  const [docs, setDocs] = useState<PublicDoc[]>([]);
+
   useEffect(() => {
     fetchSpecialistDetail(id).then(setData);
+    fetchSpecialistDocs(id).then(setDocs);
   }, [id]);
 
   if (!data) {
@@ -1135,6 +1140,30 @@ function SpecialistScreen({
                 <img loading="lazy" decoding="async" src={imgSrc(w.image_url, 400)} alt={w.caption ?? ""} />
                 {w.caption && <div className="cap">{w.caption}</div>}
               </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {docs.length > 0 && (
+        <>
+          <div className="sect-title">Дипломы и сертификаты</div>
+          <div className="docs-strip">
+            {docs.map((d) => (
+              <a
+                key={d.id}
+                className="doc-card"
+                href={d.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {d.mime_type?.startsWith("image/") ? (
+                  <img loading="lazy" decoding="async" src={d.url} alt={d.title} />
+                ) : (
+                  <span className="doc-ic">📄</span>
+                )}
+                <span className="doc-title">{d.title}</span>
+              </a>
             ))}
           </div>
         </>

@@ -931,3 +931,23 @@ export async function apiMasterDocuments(): Promise<{
     return { status: 0, data: null };
   }
 }
+
+/* публичные документы мастера (дипломы, сертификаты) — для карточки в клиентской части */
+export type PublicDoc = {
+  id: string;
+  doc_type: string;
+  title: string;
+  mime_type: string | null;
+  url: string;
+};
+
+export async function fetchSpecialistDocs(specialistId: string): Promise<PublicDoc[]> {
+  try {
+    const res = await fetch(`${API}/api/specialist-docs?id=${encodeURIComponent(specialistId)}`);
+    if (!res.ok) return [];
+    const j = (await res.json()) as { ok?: boolean; documents?: PublicDoc[] };
+    return j.ok ? (j.documents ?? []) : [];
+  } catch {
+    return [];
+  }
+}
