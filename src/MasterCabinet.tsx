@@ -604,6 +604,18 @@ function MasterEarningsTab() {
                 <span>{fmtRub(data.salary_payout)}</span>
               </div>
             )}
+            {Number(data.products_count ?? 0) > 0 && (
+              <div className="price-row">
+                <span>Товаров продано</span>
+                <span>{Number(data.products_count)}</span>
+              </div>
+            )}
+            {Number(data.products_payout ?? 0) > 0 && (
+              <div className="price-row">
+                <span>За товары</span>
+                <span>{fmtRub(data.products_payout)}</span>
+              </div>
+            )}
             <div className="price-row total">
               <span>Итого начислено</span>
               <span>{fmtRub(data.total_payout)}</span>

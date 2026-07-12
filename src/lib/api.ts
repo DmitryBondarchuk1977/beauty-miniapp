@@ -887,6 +887,8 @@ export type MasterEarnings = {
   shifts: number;
   shifts_payout: number;
   salary_payout: number;
+  products_count: number;
+  products_payout: number;
   total_payout: number;
 };
 
