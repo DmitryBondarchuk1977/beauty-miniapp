@@ -11,6 +11,7 @@ import {
   type MasterEarnings,
   type MasterDoc,
 } from "./lib/api";
+import { cacheGet, cacheSet, cacheDropPrefix } from "./lib/cache";
 
 /* ---------- helpers ---------- */
 
@@ -71,13 +72,7 @@ type Tab = "bookings" | "schedule" | "earnings" | "docs";
 
 /* ---------- главный экран кабинета ---------- */
 
-export default function MasterCabinet({
-  me,
-  onSwitchToClient,
-}: {
-  me: MasterMe;
-  onSwitchToClient: () => void;
-}) {
+export default function MasterCabinet({ me }: { me: MasterMe }) {
   const [tab, setTab] = useState<Tab>("bookings");
 
   return (
@@ -94,12 +89,9 @@ export default function MasterCabinet({
           <div className="mc-name">{me.full_name}</div>
           <div className="mc-role">Кабинет мастера</div>
         </div>
-        <button className="mc-switch" onClick={onSwitchToClient} title="Открыть как клиент">
-          Записаться
-        </button>
       </div>
 
-      <div className="content">
+      <div className="mc-content">
         {tab === "bookings" && <MasterBookingsTab />}
         {tab === "schedule" && <MasterScheduleTab />}
         {tab === "earnings" && <MasterEarningsTab />}
@@ -150,11 +142,29 @@ function MasterBookingsTab() {
     return { from: iso(now), to: iso(end) };
   }, [range]);
 
-  const load = useCallback(async () => {
-    setItems(null);
-    const r = await apiMasterBookings(from, to);
-    setItems(r.status === 200 && r.data?.ok ? r.data.bookings : []);
-  }, [from, to]);
+  const key = `m:bookings:${from}:${to}`;
+
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) {
+        const c = cacheGet<MasterBooking[]>(key, 60_000);
+        if (c) {
+          setItems(c.value);          // сразу показываем старое
+          if (c.fresh) return;        // свежее — не дёргаем сеть
+        } else {
+          setItems(null);             // кэша нет — скелетон
+        }
+      }
+      const r = await apiMasterBookings(from, to);
+      if (r.status === 200 && r.data?.ok) {
+        setItems(r.data.bookings);
+        cacheSet(key, r.data.bookings);
+      } else if (!silent) {
+        setItems((prev) => prev ?? []);
+      }
+    },
+    [from, to, key],
+  );
 
   useEffect(() => {
     load();
@@ -165,7 +175,9 @@ function MasterBookingsTab() {
     const r = await apiMasterMark(id, status);
     setBusy(null);
     if (r.status === 200 && r.data?.ok) {
-      load();
+      cacheDropPrefix("m:bookings");  // статус изменился — все периоды устарели
+      cacheDropPrefix("m:earnings");  // и доход тоже
+      load(true);
     } else {
       const e = r.data?.error;
       alert(
@@ -281,14 +293,23 @@ function MasterScheduleTab() {
   const to = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
   useEffect(() => {
-    setDays(null);
+    const key = `m:schedule:${from}`;
+    const c = cacheGet<Record<string, MasterDay>>(key, 5 * 60_000);
+    if (c) {
+      setDays(c.value);
+      if (c.fresh) return;
+    } else {
+      setDays(null);
+    }
+
     apiMasterSchedule(from, to).then((r) => {
       if (r.status === 200 && r.data?.ok) {
         const map: Record<string, MasterDay> = {};
         for (const d of r.data.days) map[d.date] = d;
         setDays(map);
+        cacheSet(key, map);
       } else {
-        setDays({});
+        setDays((prev) => prev ?? {});
       }
     });
   }, [from, to]);
@@ -331,7 +352,7 @@ function MasterScheduleTab() {
 
         {!days
           ? Array.from({ length: 35 }).map((_, i) => (
-              <div key={i} className="skeleton" style={{ height: 54, borderRadius: 10 }} />
+              <div key={i} className="skeleton mc-day-sk" />
             ))
           : cells.map((d, i) => {
               if (d === null) return <div key={`e${i}`} />;
@@ -403,10 +424,20 @@ function MasterEarningsTab() {
   }, [preset]);
 
   useEffect(() => {
-    setData(null);
+    const key = `m:earnings:${from}:${to}`;
+    const c = cacheGet<MasterEarnings>(key, 60_000);
+    if (c) {
+      setData(c.value);
+      if (c.fresh) return;
+    } else {
+      setData(null);
+    }
+
     apiMasterEarnings(from, to).then((r) => {
-      if (r.status === 200 && r.data?.ok) setData(r.data.earnings);
-      else setData(null);
+      if (r.status === 200 && r.data?.ok) {
+        setData(r.data.earnings);
+        cacheSet(key, r.data.earnings);
+      }
     });
   }, [from, to]);
 
@@ -481,8 +512,20 @@ function MasterDocsTab() {
   const [docs, setDocs] = useState<MasterDoc[] | null>(null);
 
   useEffect(() => {
+    // ссылки подписаны на 1 час — кэшируем на 30 минут
+    const c = cacheGet<MasterDoc[]>("m:docs", 30 * 60_000);
+    if (c) {
+      setDocs(c.value);
+      if (c.fresh) return;
+    }
+
     apiMasterDocuments().then((r) => {
-      setDocs(r.status === 200 && r.data?.ok ? r.data.documents : []);
+      if (r.status === 200 && r.data?.ok) {
+        setDocs(r.data.documents);
+        cacheSet("m:docs", r.data.documents);
+      } else {
+        setDocs((prev) => prev ?? []);
+      }
     });
   }, []);
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, type ReactNode } from "react";
+import { useEffect, useState, useMemo, useCallback, type ReactNode } from "react";
 import {
   fetchCategories,
   fetchPromos,
@@ -47,6 +47,7 @@ import {
 } from "./lib/api";
 import MasterCabinet from "./MasterCabinet";
 import MasterLinkScreen from "./MasterLinkScreen";
+import { cacheGet, cacheSet, cacheDrop, cacheDropPrefix } from "./lib/cache";
 import type {
   Category,
   Promo,
@@ -80,20 +81,36 @@ export default function App() {
   const push = (s: Screen) => setStack((p) => [...p, s]);
   const back = () => setStack((p) => (p.length > 1 ? p.slice(0, -1) : p));
 
-  // кабинет мастера: проверяем при старте
-  const [me, setMe] = useState<MasterMe | null>(null);
-  const [meLoaded, setMeLoaded] = useState(false);
-  const [asClient, setAsClient] = useState(false);   // мастер решил открыть клиентскую часть
+  // кабинет мастера: берём из кэша сразу, проверяем в фоне
+  const cachedMe = cacheGet<MasterMe>("me", 7 * 24 * 3600_000, "local");
+  const [me, setMe] = useState<MasterMe | null>(cachedMe?.value ?? null);
+  const [meLoaded, setMeLoaded] = useState(cachedMe != null);
 
-  const checkMe = () => {
-    apiMasterWhoami().then((r) => {
-      setMe(r.status === 200 && r.data?.ok ? r.data : null);
-      setMeLoaded(true);
-    });
-  };
+  const checkMe = useCallback(async (retry = 0) => {
+    const r = await apiMasterWhoami();
+
+    // initData может быть ещё не готов при первом рендере — пробуем ещё раз
+    if (r.status === 401 && retry < 2) {
+      setTimeout(() => checkMe(retry + 1), 350);
+      return;
+    }
+
+    if (r.status === 200 && r.data?.ok) {
+      setMe(r.data);
+      cacheSet("me", r.data, "local");
+    } else if (r.status === 200) {
+      // сервер ответил: не мастер
+      setMe(null);
+      cacheDrop("me", "local");
+      cacheDropPrefix("m:", "session");
+    }
+    // при сетевой ошибке оставляем кэш как есть
+    setMeLoaded(true);
+  }, []);
+
   useEffect(() => {
     checkMe();
-  }, []);
+  }, [checkMe]);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartLoaded, setCartLoaded] = useState(false);
@@ -206,7 +223,6 @@ export default function App() {
     content = (
       <MasterLinkScreen
         onLinked={() => {
-          setAsClient(false);
           setStack([{ name: "home" }]);
           checkMe();
         }}
@@ -242,18 +258,9 @@ export default function App() {
   const showTabBar = stack.length === 1 && tabRoots.includes(screen.name);
   const activeTab = stack[0].name;
 
-  // мастер: показываем кабинет вместо клиентского интерфейса,
-  // пока он сам не переключился в режим клиента
-  if (meLoaded && me?.ok && !asClient && screen.name !== "master-link") {
-    return (
-      <MasterCabinet
-        me={me}
-        onSwitchToClient={() => {
-          setAsClient(true);
-          setStack([{ name: "home" }]);
-        }}
-      />
-    );
+  // мастер: показываем кабинет вместо клиентского интерфейса
+  if (meLoaded && me?.ok && screen.name !== "master-link") {
+    return <MasterCabinet me={me} />;
   }
 
   return (
