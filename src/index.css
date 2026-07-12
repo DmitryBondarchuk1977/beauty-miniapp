@@ -19,7 +19,7 @@ html, body {
   font-size: 16px;
   line-height: 1.4;
 }
-#root { max-width: 680px; margin: 0 auto; padding: 0 12px 90px; }
+#root { max-width: 680px; margin: 0 auto; padding: 0 10px 90px; overflow-x: hidden; }
 img { max-width: 100%; display: block; }
 .hidden { display: none !important; }
 .hint { color: var(--hint); font-size: 14px; }
@@ -539,10 +539,9 @@ img { max-width: 100%; display: block; }
 /* ================= КАБИНЕТ МАСТЕРА ================= */
 .mc-head {
   display: flex; align-items: center; gap: 12px;
-  margin: 0 -12px;                 /* компенсируем padding у #root */
-  padding: 12px 16px;
-  background: var(--card); border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 10;
+  padding: 12px 14px; margin-top: 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  position: sticky; top: 6px; z-index: 10;
 }
 .mc-content { padding-top: 4px; }
 .mc-avatar {
@@ -604,27 +603,27 @@ img { max-width: 100%; display: block; }
   background: var(--card); font-size: 18px; color: var(--text); cursor: pointer;
 }
 .mc-cal {
-  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
-  padding: 0 2px;
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px; width: 100%;
 }
 .mc-wd { text-align: center; font-size: 10px; font-weight: 600; color: var(--hint); padding-bottom: 3px; }
 .mc-day {
-  aspect-ratio: 1 / 1.12; min-width: 0;
-  border-radius: 8px; border: 1px solid var(--line);
-  padding: 3px 1px; display: flex; flex-direction: column;
-  align-items: center; justify-content: flex-start;
+  aspect-ratio: 1 / 1.15; min-width: 0;
+  border-radius: 7px; border: 1px solid var(--line);
+  padding: 2px 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1px;
   background: #fafafa; overflow: hidden;
 }
 .mc-day.work { background: #e6f7ee; border-color: #a5dfc0; }
 .mc-day.off { background: #fdecec; border-color: #f2b8b5; }
 .mc-day.none { background: #fafafa; }
-.mc-dnum { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.1; }
-.mc-day.none .mc-dnum { color: #bbb; }
+.mc-dnum { font-size: 11px; font-weight: 700; color: var(--text); line-height: 1; }
+.mc-day.none .mc-dnum { color: #c4c4c4; }
 .mc-dtime {
-  font-size: 8px; line-height: 1.15; text-align: center;
-  color: #1a7f4b; margin-top: 1px; white-space: nowrap;
+  font-size: 7.5px; line-height: 1.1; text-align: center;
+  color: #1a7f4b; white-space: nowrap;
 }
-.mc-day.off .mc-dtime { color: #c0392b; font-size: 9px; }
+.mc-day.off .mc-dtime { color: #c0392b; font-size: 8px; }
 .mc-day.today { box-shadow: 0 0 0 1.5px var(--accent); }
 
 .mc-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 11px; color: var(--hint); }
@@ -666,4 +665,4 @@ img { max-width: 100%; display: block; }
   text-align: center; text-transform: uppercase; color: var(--text); outline: none;
 }
 .ml-code:focus { border-color: var(--accent); }
-.mc-day-sk { aspect-ratio: 1 / 1.12; border-radius: 8px; }
+.mc-day-sk { aspect-ratio: 1 / 1.15; border-radius: 7px; }
