@@ -608,22 +608,23 @@ img { max-width: 100%; display: block; }
 }
 .mc-wd { text-align: center; font-size: 10px; font-weight: 600; color: var(--hint); padding-bottom: 3px; }
 .mc-day {
-  aspect-ratio: 1 / 1.15; min-width: 0;
-  border-radius: 7px; border: 1px solid var(--line);
-  padding: 2px 0; display: flex; flex-direction: column;
+  height: 50px;                      /* одинаковая высота у всех плиток */
+  min-width: 0; min-height: 0;
+  border-radius: 8px; border: 1px solid var(--line);
+  padding: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 1px;
-  background: #fafafa; overflow: hidden;
+  background: var(--card); overflow: hidden;
 }
-.mc-day.work { background: #e6f7ee; border-color: #a5dfc0; }
-.mc-day.off { background: #fdecec; border-color: #f2b8b5; }
-.mc-day.none { background: #fafafa; }
-.mc-dnum { font-size: 11px; font-weight: 700; color: var(--text); line-height: 1; }
-.mc-day.none .mc-dnum { color: #c4c4c4; }
+.mc-day.work { background: #e6f7ee; border-color: #b9e4cd; }
+.mc-day.off { background: #fdecec; border-color: #f3c6c3; }
+.mc-day.none { background: var(--card); border-color: var(--line); }
+.mc-dnum { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1; }
+.mc-day.none .mc-dnum { color: var(--hint); font-weight: 500; }
 .mc-dtime {
-  font-size: 7.5px; line-height: 1.1; text-align: center;
-  color: #1a7f4b; white-space: nowrap;
+  font-size: 8px; line-height: 1.15; text-align: center;
+  color: #1a7f4b; overflow: hidden;
 }
-.mc-day.off .mc-dtime { color: #c0392b; font-size: 8px; }
+.mc-day.off .mc-dtime { color: #c0392b; }
 .mc-day.today { box-shadow: 0 0 0 1.5px var(--accent); }
 
 .mc-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 11px; color: var(--hint); }
@@ -665,4 +666,4 @@ img { max-width: 100%; display: block; }
   text-align: center; text-transform: uppercase; color: var(--text); outline: none;
 }
 .ml-code:focus { border-color: var(--accent); }
-.mc-day-sk { aspect-ratio: 1 / 1.15; border-radius: 7px; }
+.mc-day-sk { height: 50px; border-radius: 8px; }
