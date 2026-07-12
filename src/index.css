@@ -535,3 +535,123 @@ img { max-width: 100%; display: block; }
 .master-row.on { box-shadow: inset 0 0 0 2px var(--accent); background: #fdf6f5; }
 .master-row.on .master-cta .go { color: var(--accent); font-weight: 700; }
 .master-cta .price { font-size: 13px; font-weight: 700; color: var(--text); }
+
+/* ================= КАБИНЕТ МАСТЕРА ================= */
+.mc-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; background: var(--card); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 10;
+}
+.mc-avatar {
+  width: 44px; height: 44px; border-radius: 50%; flex: 0 0 auto;
+  display: grid; place-items: center; overflow: hidden;
+  background: #f0e6e4; color: #8b6d68; font-weight: 700; font-size: 14px;
+}
+.mc-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.mc-who { flex: 1; min-width: 0; }
+.mc-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.mc-role { font-size: 12px; color: var(--hint); }
+.mc-switch {
+  flex: 0 0 auto; padding: 7px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent;
+  font-size: 12px; font-weight: 600; color: var(--text); cursor: pointer;
+}
+
+/* сегменты периода */
+.mc-seg { display: flex; gap: 6px; padding: 12px 0 4px; }
+.mc-seg button {
+  flex: 1; padding: 9px 0; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--card); font-size: 13px; font-weight: 600; color: var(--hint); cursor: pointer;
+}
+.mc-seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* карточка записи */
+.mc-card {
+  display: flex; gap: 12px; padding: 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px;
+}
+.mc-time {
+  flex: 0 0 auto; width: 56px; font-size: 13px; font-weight: 700; color: var(--text);
+  display: flex; flex-direction: column; align-items: center; line-height: 1.4;
+}
+.mc-dash { color: var(--hint); font-weight: 400; }
+.mc-body { flex: 1; min-width: 0; }
+.mc-svc { font-size: 14px; font-weight: 700; color: var(--text); }
+.mc-client { font-size: 12px; color: var(--hint); margin-top: 2px; }
+.mc-phone { display: block; color: var(--accent); text-decoration: none; margin-top: 2px; }
+.mc-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.mc-price { font-size: 13px; font-weight: 700; color: var(--text); margin-left: auto; }
+.mc-acts { display: flex; gap: 8px; margin-top: 10px; }
+
+.mc-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 8px; }
+.mb-st-new { background: #eef2ff; color: #4f5bd5; }
+.mb-st-done { background: #e6f7ee; color: #1a7f4b; }
+.mb-st-paid { background: #e6f7ee; color: #1a7f4b; }
+.mb-st-noshow { background: #fdecec; color: #c0392b; }
+.mb-st-cancel { background: #f1f1f1; color: #888; }
+.mb-st-warn { background: #fff5e6; color: #9a6b00; }
+
+/* календарь графика */
+.mc-monthnav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 4px 10px; font-size: 15px; font-weight: 700; color: var(--text);
+}
+.mc-monthnav button {
+  width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--card); font-size: 18px; color: var(--text); cursor: pointer;
+}
+.mc-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.mc-wd { text-align: center; font-size: 11px; font-weight: 600; color: var(--hint); padding-bottom: 4px; }
+.mc-day {
+  height: 54px; border-radius: 10px; border: 1px solid var(--line);
+  padding: 4px; display: flex; flex-direction: column; align-items: center;
+  background: #fafafa;
+}
+.mc-day.work { background: #e6f7ee; border-color: #a5dfc0; }
+.mc-day.off { background: #fdecec; border-color: #f2b8b5; }
+.mc-day.none { background: #fafafa; }
+.mc-day.today { box-shadow: 0 0 0 2px var(--accent); }
+.mc-dnum { font-size: 13px; font-weight: 700; color: var(--text); }
+.mc-day.none .mc-dnum { color: #bbb; }
+.mc-dtime { font-size: 9px; line-height: 1.2; text-align: center; color: #1a7f4b; margin-top: 1px; }
+.mc-day.off .mc-dtime { color: #c0392b; }
+
+.mc-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 11px; color: var(--hint); }
+.mc-legend span { display: flex; align-items: center; gap: 5px; }
+.mc-legend .lg { width: 11px; height: 11px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; }
+.mc-legend .lg.work { background: #e6f7ee; border-color: #a5dfc0; }
+.mc-legend .lg.off { background: #fdecec; border-color: #f2b8b5; }
+.mc-legend .lg.none { background: #fafafa; }
+
+/* заработки */
+.mc-total {
+  border-radius: 16px; padding: 18px; margin: 12px 0;
+  background: linear-gradient(135deg, #fdf4f3, #f7e8e6); border: 1px solid #eed6d2;
+}
+.mc-total-lbl { font-size: 12px; color: var(--hint); }
+.mc-total-val { font-size: 28px; font-weight: 800; color: var(--text); margin-top: 4px; }
+
+/* документы */
+.mc-doc {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; margin-bottom: 8px;
+}
+.mc-doc-main { flex: 1; min-width: 0; }
+.mc-doc-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.mc-doc-type { font-size: 12px; color: var(--hint); margin-top: 2px; }
+
+/* экран привязки */
+.ml-block {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px; margin-top: 12px;
+}
+.ml-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.ml-text { font-size: 12px; color: var(--hint); margin: 6px 0 12px; line-height: 1.4; }
+.ml-code-row { display: flex; gap: 8px; }
+.ml-code {
+  flex: 1; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: #fff; font-size: 16px; font-weight: 700; letter-spacing: 2px;
+  text-align: center; text-transform: uppercase; color: var(--text); outline: none;
+}
+.ml-code:focus { border-color: var(--accent); }

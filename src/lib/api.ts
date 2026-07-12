@@ -773,3 +773,161 @@ export async function apiRescheduleConfirm(
     return { status: 0, data: null };
   }
 }
+
+/* ================= КАБИНЕТ МАСТЕРА ================= */
+
+export type MasterMe = {
+  ok: boolean;
+  specialist_id?: string;
+  full_name?: string;
+  photo_url?: string | null;
+};
+
+export async function apiMasterWhoami(): Promise<{ status: number; data: MasterMe | null }> {
+  try {
+    const res = await fetch(`${API}/api/master/whoami`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData() }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiMasterLink(payload: { contact?: string; code?: string }): Promise<{
+  status: number;
+  data: { ok: boolean; error?: string; full_name?: string } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/master/link`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), ...payload }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export type MasterBooking = {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+  service_name: string;
+  client_name: string;
+  client_phone: string | null;
+  price: number;
+  can_mark: boolean;
+};
+
+export async function apiMasterBookings(from: string, to: string): Promise<{
+  status: number;
+  data: { ok: boolean; bookings: MasterBooking[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/master/bookings`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), from, to }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiMasterMark(bookingId: string, status: "completed" | "no_show"): Promise<{
+  status: number;
+  data: { ok: boolean; error?: string } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/master/mark`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), booking_id: bookingId, status }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export type MasterDay = {
+  date: string;
+  day_type: "work" | "off";
+  start_time: string | null;
+  end_time: string | null;
+  break_start: string | null;
+  break_end: string | null;
+};
+
+export async function apiMasterSchedule(from: string, to: string): Promise<{
+  status: number;
+  data: { ok: boolean; days: MasterDay[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/master/schedule`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), from, to }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export type MasterEarnings = {
+  services_count: number;
+  services_payout: number;
+  shifts: number;
+  shifts_payout: number;
+  salary_payout: number;
+  total_payout: number;
+};
+
+export async function apiMasterEarnings(from: string, to: string): Promise<{
+  status: number;
+  data: { ok: boolean; earnings: MasterEarnings } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/master/earnings`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), from, to }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export type MasterDoc = {
+  id: string;
+  doc_type: string;
+  title: string;
+  expires_at: string | null;
+  expiry_status: "none" | "valid" | "expiring" | "expired";
+  days_left: number | null;
+  url: string | null;
+};
+
+export async function apiMasterDocuments(): Promise<{
+  status: number;
+  data: { ok: boolean; documents: MasterDoc[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/master/documents`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData() }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

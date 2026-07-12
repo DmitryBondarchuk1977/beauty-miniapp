@@ -41,8 +41,12 @@ import {
   apiRescheduleStart,
   apiRescheduleCancel,
   apiRescheduleConfirm,
+  apiMasterWhoami,
   type ActiveReschedule,
+  type MasterMe,
 } from "./lib/api";
+import MasterCabinet from "./MasterCabinet";
+import MasterLinkScreen from "./MasterLinkScreen";
 import type {
   Category,
   Promo,
@@ -75,6 +79,21 @@ export default function App() {
   const screen = stack[stack.length - 1];
   const push = (s: Screen) => setStack((p) => [...p, s]);
   const back = () => setStack((p) => (p.length > 1 ? p.slice(0, -1) : p));
+
+  // кабинет мастера: проверяем при старте
+  const [me, setMe] = useState<MasterMe | null>(null);
+  const [meLoaded, setMeLoaded] = useState(false);
+  const [asClient, setAsClient] = useState(false);   // мастер решил открыть клиентскую часть
+
+  const checkMe = () => {
+    apiMasterWhoami().then((r) => {
+      setMe(r.status === 200 && r.data?.ok ? r.data : null);
+      setMeLoaded(true);
+    });
+  };
+  useEffect(() => {
+    checkMe();
+  }, []);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartLoaded, setCartLoaded] = useState(false);
@@ -183,6 +202,17 @@ export default function App() {
     content = <CancelScreen bookingId={screen.bookingId} onDone={() => goTab("bookings")} onBack={back} />;
   else if (screen.name === "unsub")
     content = <UnsubScreen broadcastId={screen.broadcastId} onHome={() => goTab("home")} />;
+  else if (screen.name === "master-link")
+    content = (
+      <MasterLinkScreen
+        onLinked={() => {
+          setAsClient(false);
+          setStack([{ name: "home" }]);
+          checkMe();
+        }}
+        onBack={back}
+      />
+    );
   else if (screen.name === "reschedule")
     content = (
       <RescheduleScreen
@@ -211,6 +241,20 @@ export default function App() {
   const tabRoots = ["home", "bookings", "cart", "profile"];
   const showTabBar = stack.length === 1 && tabRoots.includes(screen.name);
   const activeTab = stack[0].name;
+
+  // мастер: показываем кабинет вместо клиентского интерфейса,
+  // пока он сам не переключился в режим клиента
+  if (meLoaded && me?.ok && !asClient && screen.name !== "master-link") {
+    return (
+      <MasterCabinet
+        me={me}
+        onSwitchToClient={() => {
+          setAsClient(true);
+          setStack([{ name: "home" }]);
+        }}
+      />
+    );
+  }
 
   return (
     <div className={showTabBar ? "app has-tabbar" : "app"}>
@@ -1697,6 +1741,11 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         <button className="menu-row" onClick={() => onNavigate({ name: "my-reviews" })}>
           <span className="menu-ic">★</span>
           <span className="menu-tx">Мои отзывы</span>
+          <span className="menu-go">›</span>
+        </button>
+        <button className="menu-row" onClick={() => onNavigate({ name: "master-link" })}>
+          <span className="menu-ic">💼</span>
+          <span className="menu-tx">Вход для сотрудников</span>
           <span className="menu-go">›</span>
         </button>
       </div>
