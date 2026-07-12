@@ -1328,10 +1328,14 @@ function RescheduleScreen({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [serviceName, setServiceName] = useState("");
+  const [duration, setDuration] = useState<number | null>(null);
 
   useEffect(() => {
     fetchServiceDetail(serviceId).then((r) => {
-      if (r) setServiceName(r.service.name);
+      if (r) {
+        setServiceName(r.service.name);
+        setDuration(r.service.duration_min);
+      }
     });
     fetchServiceMasters(serviceId).then(setMasters);
   }, [serviceId]);
@@ -1353,11 +1357,14 @@ function RescheduleScreen({
     setSaving(false);
     if (r.status === 200 && r.data?.ok) {
       onDone();
+    } else if (r.status === 409) {
+      setErr("Это время только что заняли. Выберите другое.");
+      fetchSlots(specId, serviceId, date).then(setSlots);
+      setSlot(null);
     } else {
       const e = r.data?.error;
       setErr(
-        e === "slot_taken" ? "Это время только что заняли. Выберите другое."
-        : e === "reschedule_too_far" ? "Слишком далеко: перенести можно не более чем на 30 дней вперёд."
+        e === "reschedule_too_far" ? "Перенести можно не более чем на 30 дней вперёд."
         : e === "reschedule_expired" ? "Перенос истёк. Начните заново из «Моих записей»."
         : "Не удалось перенести. Попробуйте ещё раз.",
       );
@@ -1369,73 +1376,87 @@ function RescheduleScreen({
   return (
     <div>
       <button className="back-btn" onClick={onBack}>‹ Назад</button>
-
-      <div className="rs-head">
-        <div className="rs-title">Перенос записи</div>
-        <div className="rs-svc">{serviceName || "Услуга"}</div>
-        <div className="rs-old">Сейчас: <b style={{ textTransform: "capitalize" }}>{fullDateTime(origStartsAt)}</b></div>
+      <div className="sect-title" style={{ marginTop: 0 }}>Перенос записи</div>
+      <div className="book-sub">
+        {serviceName || "…"}
+        {duration != null && ` · ${fmtDuration(duration)}`}
+      </div>
+      <div className="book-note" style={{ marginTop: 6 }}>
+        Сейчас: <b style={{ textTransform: "capitalize" }}>{fullDateTime(origStartsAt)}</b>
       </div>
 
       <div className="sect-title">Мастер</div>
       {!masters ? (
         <div className="skeleton" style={{ height: 64, borderRadius: 14 }} />
+      ) : masters.length === 0 ? (
+        <div className="empty">Нет мастеров для этой услуги.</div>
       ) : (
-        <div className="rs-masters">
-          {masters.map((m) => (
-            <button
-              key={m.id}
-              className={`rs-master ${m.id === specId ? "on" : ""}`}
-              onClick={() => setSpecId(m.id)}
-            >
+        masters.map((m) => (
+          <div
+            key={m.id}
+            className={`master-row ${m.id === specId ? "on" : ""}`}
+            onClick={() => setSpecId(m.id)}
+          >
+            <div className="master-photo">
               {m.photo_url ? (
                 <img loading="lazy" decoding="async" src={imgSrc(m.photo_url, 120, 120)} alt={m.full_name} />
               ) : (
-                <span className="initials">{initials(m.full_name)}</span>
+                initials(m.full_name)
               )}
-              <span className="rs-mname">{m.full_name}</span>
-              <span className="rs-mprice">{fmtRub(m.price)}</span>
-            </button>
-          ))}
-        </div>
+            </div>
+            <div className="master-info">
+              <div className="master-name">{m.full_name}</div>
+              <div className="master-rating">★ {m.rating?.toFixed(1) ?? "0.0"}</div>
+            </div>
+            <div className="master-cta">
+              <div className="price">{fmtRub(m.price)}</div>
+              {m.id === specId && <div className="go">Выбран ✓</div>}
+            </div>
+          </div>
+        ))
       )}
 
       <div className="sect-title">Дата</div>
-      <div className="days">
+      <div className="date-strip">
         {days.map((d) => (
           <button
             key={d.dateStr}
-            className={`day ${d.dateStr === date ? "on" : ""}`}
+            className={`date-chip ${date === d.dateStr ? "on" : ""}`}
             onClick={() => setDate(d.dateStr)}
           >
-            <span className="dw">{d.dow}</span>
-            <span className="dd">{d.dom}</span>
+            <div className="dow">{d.dow}</div>
+            <div className="dom">{d.dom}</div>
           </button>
         ))}
       </div>
 
       <div className="sect-title">Время</div>
       {slotsLoading ? (
-        <div className="skeleton" style={{ height: 44, borderRadius: 12 }} />
+        <div className="slots-grid">
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+            <div key={i} className="skeleton" style={{ height: 42, borderRadius: 12 }} />
+          ))}
+        </div>
       ) : slots.length === 0 ? (
-        <div className="empty">На этот день свободного времени нет. Выберите другую дату.</div>
+        <div className="empty">На этот день свободных слотов нет. Выберите другую дату.</div>
       ) : (
-        <div className="slots">
+        <div className="slots-grid">
           {slots.map((s) => (
             <button
               key={s.slot_start}
               className={`slot ${slot === s.slot_start ? "on" : ""}`}
               onClick={() => setSlot(s.slot_start)}
             >
-              {new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(s.slot_start))}
+              {slotTime(s.slot_start)}
             </button>
           ))}
         </div>
       )}
 
-      {selected && slot && (
-        <div className="price-card" style={{ marginTop: 12 }}>
+      {selected && (
+        <div className="price-card">
           <div className="price-row total">
-            <span>Новая стоимость</span>
+            <span>Стоимость</span>
             <span>{fmtRub(selected.price)}</span>
           </div>
         </div>
