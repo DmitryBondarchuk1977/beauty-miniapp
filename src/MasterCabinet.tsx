@@ -41,6 +41,13 @@ function dayLabel(isoStr: string) {
   }).format(new Date(isoStr));
 }
 
+/** «10:00» → «10», «10:30» → «10:30» — чтобы влезало в плитку календаря */
+function hourOnly(t: string | null) {
+  if (!t) return "";
+  const [h, m] = t.slice(0, 5).split(":");
+  return m === "00" ? String(Number(h)) : `${Number(h)}:${m}`;
+}
+
 function fmtRub(v: number) {
   return new Intl.NumberFormat("ru-RU").format(Math.round(v)) + " ₽";
 }
@@ -365,9 +372,7 @@ function MasterScheduleTab() {
                   <div className="mc-dnum">{d}</div>
                   {day?.day_type === "work" && day.start_time && (
                     <div className="mc-dtime">
-                      {day.start_time.slice(0, 5)}
-                      <br />
-                      {day.end_time?.slice(0, 5)}
+                      {hourOnly(day.start_time)}–{hourOnly(day.end_time)}
                     </div>
                   )}
                   {day?.day_type === "off" && <div className="mc-dtime">вых</div>}
