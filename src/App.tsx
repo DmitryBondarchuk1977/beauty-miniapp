@@ -2157,7 +2157,7 @@ function CartScreen({
         </div>
         <div style={{ maxWidth: 320, margin: "16px auto 0", display: "grid", gap: 8 }}>
           <button className="btn btn-primary" onClick={onAdd}>К услугам</button>
-          <button className="mini-btn" onClick={onShop}>В магазин</button>
+          <button className="btn btn-ghost" onClick={onShop}>В магазин</button>
         </div>
       </div>
     );
