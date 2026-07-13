@@ -43,8 +43,14 @@ import {
   apiRescheduleConfirm,
   apiMasterWhoami,
   apiReserveProducts,
+  fetchDaySlots,
+  apiWaitlistJoin,
+  apiWaitlistLeave,
+  apiMyWaitlist,
   fetchSpecialistDocs,
   type ActiveReschedule,
+  type DaySlot,
+  type WaitItem,
   type MasterMe,
   type PublicDoc,
 } from "./lib/api";
@@ -79,6 +85,8 @@ export default function App() {
     const rid = params.get("review");
     const xid = params.get("cancel");
     const uid = params.get("unsub");
+    const wl = params.get("wl");
+    if (wl) return [{ name: "home" }, { name: "my-waitlist" }];
     if (cid) return [{ name: "home" }, { name: "confirm", bookingId: cid }];
     if (rid) return [{ name: "home" }, { name: "review", bookingId: rid }];
     if (xid) return [{ name: "home" }, { name: "cancel", bookingId: xid }];
@@ -286,6 +294,20 @@ export default function App() {
         onCart={() => goTab("cart")}
       />
     );
+  else if (screen.name === "my-waitlist")
+    content = (
+      <MyWaitlistScreen
+        onBack={back}
+        onBook={(w) =>
+          push({
+            name: "booking",
+            serviceId: w.service_id,
+            specialistId: w.specialist_id,
+            presetSlot: w.offered_slot ?? undefined,
+          })
+        }
+      />
+    );
   else if (screen.name === "my-products")
     content = <MyProductsScreen onBack={back} onShop={() => push({ name: "shop" })} />;
   else if (screen.name === "master-link")
@@ -346,6 +368,7 @@ export default function App() {
       <BookingScreen
         serviceId={screen.serviceId}
         specialistId={screen.specialistId}
+        presetSlot={screen.presetSlot}
         onBack={back}
         onHome={() => goTab("home")}
       />
@@ -891,6 +914,7 @@ function fullDateTime(iso: string) {
 function BookingScreen({
   serviceId,
   specialistId,
+  presetSlot,
   onBack,
   onHome,
 }: {
@@ -898,6 +922,7 @@ function BookingScreen({
   specialistId: string;
   onBack: () => void;
   onHome: () => void;
+  presetSlot?: string;
 }) {
   const [ctx, setCtx] = useState<{
     service: { name: string; duration_min: number } | null;
@@ -906,9 +931,13 @@ function BookingScreen({
   } | null>(null);
   const [days] = useState(nextDays());
   const [date, setDate] = useState(days[0].dateStr);
-  const [slots, setSlots] = useState<{ slot_start: string; slot_end: string }[]>([]);
+  const [slots, setSlots] = useState<DaySlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
   const [slot, setSlot] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState<Set<string>>(new Set());   // слоты, где я уже в очереди
+  const [dayWaiting, setDayWaiting] = useState(false);              // жду весь день
+  const [wlBusy, setWlBusy] = useState<string | null>(null);
+  const [wlMsg, setWlMsg] = useState<string | null>(null);
   const [price, setPrice] = useState<PriceResult | null>(null);
   const [booking, setBooking] = useState(false);
   const [result, setResult] = useState<{ startsAt: string; final: number } | null>(null);
@@ -939,11 +968,70 @@ function BookingScreen({
   useEffect(() => {
     setSlotsLoading(true);
     setSlot(null);
-    fetchSlots(specialistId, serviceId, date).then((s) => {
+    setWlMsg(null);
+    fetchDaySlots(specialistId, serviceId, date).then((s) => {
       setSlots(s);
       setSlotsLoading(false);
+      // пришли по ссылке «освободилось время» — сразу подставляем слот
+      if (presetSlot && s.some((x) => x.slot_start === presetSlot && x.is_free)) {
+        setSlot(presetSlot);
+      }
     });
-  }, [date, specialistId, serviceId]);
+  }, [date, specialistId, serviceId, presetSlot]);
+
+  // дата из предложения
+  useEffect(() => {
+    if (!presetSlot) return;
+    const d = presetSlot.slice(0, 10);
+    if (days.some((x) => x.dateStr === d)) setDate(d);
+  }, [presetSlot, days]);
+
+  // что я уже жду — чтобы не предлагать встать в очередь дважды
+  useEffect(() => {
+    apiMyWaitlist().then((r) => {
+      if (r.status !== 200 || !r.data?.ok) return;
+      const mine = r.data.items.filter(
+        (w) => w.specialist_id === specialistId && w.service_id === serviceId,
+      );
+      setWaiting(new Set(mine.filter((w) => w.kind === "slot" && w.slot_start).map((w) => w.slot_start!)));
+      setDayWaiting(mine.some((w) => w.kind === "day" && w.target_date === date));
+    });
+  }, [specialistId, serviceId, date]);
+
+  async function joinQueue(kind: "slot" | "day", slotIso?: string) {
+    setWlBusy(slotIso ?? "day");
+    setWlMsg(null);
+
+    const r = await apiWaitlistJoin({
+      service_id: serviceId,
+      specialist_id: specialistId,
+      kind,
+      date,
+      slot: slotIso ?? null,
+    });
+    setWlBusy(null);
+
+    if (r.status === 200 && r.data?.ok) {
+      if (kind === "slot" && slotIso) {
+        setWaiting((prev) => new Set(prev).add(slotIso));
+      } else {
+        setDayWaiting(true);
+      }
+      setWlMsg("Вы в очереди. Освободится — пришлём уведомление первым.");
+      return;
+    }
+
+    const e = r.data?.error;
+    setWlMsg(
+      e === "limit_reached"
+        ? `Можно ждать не больше ${r.data?.limit ?? 3} записей одновременно. Отмените лишнее в профиле.`
+        : e === "already_waiting"
+        ? "Вы уже в этой очереди."
+        : e === "slot_is_free"
+        ? "Это время уже свободно — просто выберите его."
+        : "Не удалось встать в очередь.",
+    );
+  }
 
   async function book() {
     if (!slot) return;
@@ -957,7 +1045,7 @@ function BookingScreen({
       setErr("Запись доступна только из Telegram.");
     } else if (r.status === 409) {
       setErr("Этот слот только что заняли. Выберите другое время.");
-      fetchSlots(specialistId, serviceId, date).then(setSlots);
+      fetchDaySlots(specialistId, serviceId, date).then(setSlots);
       setSlot(null);
     } else {
       setErr(r.data?.error ? `Ошибка: ${r.data.error}` : "Не удалось записаться. Попробуйте ещё раз.");
@@ -1028,19 +1116,61 @@ function BookingScreen({
           ))}
         </div>
       ) : slots.length === 0 ? (
-        <div className="empty">На этот день свободных слотов нет. Выберите другую дату.</div>
+        <div className="empty">В этот день мастер не работает. Выберите другую дату.</div>
       ) : (
-        <div className="slots-grid">
-          {slots.map((s) => (
+        <>
+          <div className="slots-grid">
+            {slots.map((s) => {
+              const inQueue = waiting.has(s.slot_start);
+              if (s.is_free) {
+                return (
+                  <button
+                    key={s.slot_start}
+                    className={`slot ${slot === s.slot_start ? "on" : ""}`}
+                    onClick={() => setSlot(s.slot_start)}
+                  >
+                    {slotTime(s.slot_start)}
+                  </button>
+                );
+              }
+              return (
+                <button
+                  key={s.slot_start}
+                  className={`slot busy ${inQueue ? "queued" : ""}`}
+                  disabled={wlBusy === s.slot_start || inQueue}
+                  onClick={() => joinQueue("slot", s.slot_start)}
+                  title={inQueue ? "Вы в очереди" : "Занято — встать в очередь"}
+                >
+                  {slotTime(s.slot_start)}
+                  <span className="slot-mark">{inQueue ? "🔔" : "🔒"}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {slots.some((s) => !s.is_free) && (
+            <div className="book-note">
+              Занятое время можно нажать — сообщим, если освободится.
+            </div>
+          )}
+
+          {slots.every((s) => !s.is_free) && (
             <button
-              key={s.slot_start}
-              className={`slot ${slot === s.slot_start ? "on" : ""}`}
-              onClick={() => setSlot(s.slot_start)}
+              className="btn btn-ghost"
+              style={{ marginTop: 10 }}
+              disabled={wlBusy === "day" || dayWaiting}
+              onClick={() => joinQueue("day", undefined)}
             >
-              {slotTime(s.slot_start)}
+              {dayWaiting
+                ? "🔔 Вы в очереди на этот день"
+                : wlBusy === "day"
+                ? "Встаём в очередь…"
+                : "Сообщить о любом окне в этот день"}
             </button>
-          ))}
-        </div>
+          )}
+
+          {wlMsg && <div className="book-note wl-msg">{wlMsg}</div>}
+        </>
       )}
 
       {full != null && (
@@ -1886,6 +2016,11 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
           <span className="menu-tx">Мои отзывы</span>
           <span className="menu-go">›</span>
         </button>
+        <button className="menu-row" onClick={() => onNavigate({ name: "my-waitlist" })}>
+          <span className="menu-ic">🔔</span>
+          <span className="menu-tx">Лист ожидания</span>
+          <span className="menu-go">›</span>
+        </button>
         <button className="menu-row" onClick={() => onNavigate({ name: "my-products" })}>
           <span className="menu-ic">🛍</span>
           <span className="menu-tx">Мои товары</span>
@@ -2343,6 +2478,145 @@ function CartScreen({
       </div>
     </div>
   );
+}
+
+/* ---------- ЛИСТ ОЖИДАНИЯ ---------- */
+function MyWaitlistScreen({
+  onBack,
+  onBook,
+}: {
+  onBack: () => void;
+  onBook: (w: WaitItem) => void;
+}) {
+  const [items, setItems] = useState<WaitItem[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  function load() {
+    apiMyWaitlist().then((r) => {
+      setItems(r.status === 200 && r.data?.ok ? r.data.items : []);
+    });
+  }
+
+  useEffect(load, []);
+
+  // тикаем, чтобы обратный отсчёт предложения шёл вживую
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  async function leave(id: string) {
+    if (!confirm("Выйти из очереди?")) return;
+    setBusy(id);
+    const r = await apiWaitlistLeave(id);
+    setBusy(null);
+    if (r.status === 200 && r.data?.ok) load();
+    else alert("Не удалось выйти из очереди.");
+  }
+
+  if (!items) {
+    return (
+      <div>
+        <button className="back-btn" onClick={onBack}>‹ Назад</button>
+        <div className="skeleton" style={{ height: 90, borderRadius: 14, marginTop: 12 }} />
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div>
+        <button className="back-btn" onClick={onBack}>‹ Назад</button>
+        <div className="sect-title" style={{ marginTop: 0 }}>Лист ожидания</div>
+        <div className="empty">
+          Вы никого не ждёте. Если нужное время занято — нажмите на него при записи,
+          и мы сообщим, когда оно освободится.
+        </div>
+      </div>
+    );
+  }
+
+  const offered = items.filter((w) => w.status === "offered");
+  const waiting = items.filter((w) => w.status === "waiting");
+
+  return (
+    <div>
+      <button className="back-btn" onClick={onBack}>‹ Назад</button>
+      <div className="sect-title" style={{ marginTop: 0 }}>Лист ожидания</div>
+
+      {offered.length > 0 && (
+        <>
+          <div className="sect-title">Освободилось — успейте записаться</div>
+          {offered.map((w) => {
+            const left = w.offer_expires_at
+              ? Math.max(0, new Date(w.offer_expires_at).getTime() - now)
+              : 0;
+            const mm = Math.floor(left / 60000);
+            const ss = Math.floor((left % 60000) / 1000);
+
+            return (
+              <div className="wl-card offer" key={w.id}>
+                <div className="wl-top">
+                  <div className="wl-svc">{w.service_name}</div>
+                  <div className="wl-timer">
+                    {left > 0 ? `⏳ ${mm}:${String(ss).padStart(2, "0")}` : "истекло"}
+                  </div>
+                </div>
+                <div className="wl-meta">
+                  {w.specialist_name}
+                  {w.offered_slot && <> · {fullDateTime(w.offered_slot)}</>}
+                </div>
+                <button
+                  className="btn btn-primary"
+                  style={{ marginTop: 10 }}
+                  disabled={left <= 0}
+                  onClick={() => onBook(w)}
+                >
+                  {left > 0 ? "Записаться" : "Время вышло"}
+                </button>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {waiting.length > 0 && (
+        <>
+          <div className="sect-title">Ожидаю</div>
+          {waiting.map((w) => (
+            <div className="wl-card" key={w.id}>
+              <div className="wl-svc">{w.service_name}</div>
+              <div className="wl-meta">
+                {w.specialist_name} ·{" "}
+                {w.kind === "slot" && w.slot_start
+                  ? fullDateTime(w.slot_start)
+                  : `${dayLabelRu(w.target_date)}, любое время`}
+              </div>
+              <button
+                className="wl-leave"
+                disabled={busy === w.id}
+                onClick={() => leave(w.id)}
+              >
+                {busy === w.id ? "Выходим…" : "Выйти из очереди"}
+              </button>
+            </div>
+          ))}
+          <div className="book-note">
+            Как только время освободится, пришлём уведомление. Место придержим 30 минут.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function dayLabelRu(dateStr: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    weekday: "short",
+  }).format(new Date(`${dateStr}T12:00:00`));
 }
 
 /* ---------- ТОВАРЫ ОТЛОЖЕНЫ ---------- */

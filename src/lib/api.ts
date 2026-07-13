@@ -1042,3 +1042,98 @@ export async function apiCancelReservation(saleId: string): Promise<{
     return { status: 0, data: null };
   }
 }
+
+/* ================= ЛИСТ ОЖИДАНИЯ ================= */
+
+export type DaySlot = {
+  slot_start: string;
+  slot_end: string;
+  is_free: boolean;
+};
+
+/** Все слоты дня — свободные и занятые (на занятые можно встать в очередь) */
+export async function fetchDaySlots(
+  specialistId: string,
+  serviceId: string,
+  date: string,
+): Promise<DaySlot[]> {
+  try {
+    const res = await fetch(
+      `${API}/api/day-slots?specialist=${specialistId}&service=${serviceId}&date=${date}`,
+    );
+    if (!res.ok) return [];
+    const j = (await res.json()) as { ok?: boolean; slots?: DaySlot[] };
+    return j.ok ? (j.slots ?? []) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function apiWaitlistJoin(payload: {
+  service_id: string;
+  specialist_id: string;
+  kind: "slot" | "day";
+  date: string;
+  slot?: string | null;
+}): Promise<{
+  status: number;
+  data: { ok: boolean; id?: string; error?: string; limit?: number } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/waitlist-join`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), ...payload }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiWaitlistLeave(id: string): Promise<{
+  status: number;
+  data: { ok: boolean; error?: string } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/waitlist-leave`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), id }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export type WaitItem = {
+  id: string;
+  kind: "slot" | "day";
+  status: "waiting" | "offered";
+  target_date: string;
+  slot_start: string | null;
+  offered_slot: string | null;
+  offer_expires_at: string | null;
+  service_id: string;
+  service_name: string;
+  specialist_id: string;
+  specialist_name: string;
+  created_at: string;
+};
+
+export async function apiMyWaitlist(): Promise<{
+  status: number;
+  data: { ok: boolean; items: WaitItem[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/my-waitlist`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData() }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

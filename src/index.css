@@ -899,3 +899,49 @@ img { max-width: 100%; display: block; }
 }
 .mp-cancel:disabled { opacity: .5; }
 .mp-cancel:active { color: #e05a52; }
+
+/* занятый слот: можно встать в очередь */
+.slot.busy {
+  position: relative;
+  background: rgba(128, 128, 128, .1);
+  border-color: var(--line);
+  color: var(--hint);
+  border-style: dashed;
+}
+.slot.busy:active { opacity: .7; }
+.slot.busy:disabled { opacity: 1; }
+.slot.busy.queued {
+  background: rgba(245, 158, 11, .14);
+  border-color: rgba(245, 158, 11, .4);
+  border-style: solid;
+  color: var(--text);
+}
+.slot-mark {
+  position: absolute; top: 2px; right: 4px;
+  font-size: 9px; line-height: 1;
+}
+.wl-msg { color: var(--text); opacity: .85; }
+
+/* лист ожидания */
+.wl-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 12px; margin-bottom: 8px;
+}
+.wl-card.offer {
+  border-color: rgba(245, 158, 11, .45);
+  background: rgba(245, 158, 11, .08);
+}
+.wl-top { display: flex; align-items: center; gap: 8px; }
+.wl-svc { font-size: 14px; font-weight: 700; color: var(--text); flex: 1; min-width: 0; }
+.wl-timer {
+  flex: 0 0 auto; font-size: 12px; font-weight: 700;
+  color: #d99321; font-variant-numeric: tabular-nums;
+}
+.wl-meta { font-size: 12px; color: var(--hint); margin-top: 3px; line-height: 1.35; }
+.wl-leave {
+  margin-top: 8px; padding: 0; background: none; border: none;
+  font-size: 12px; color: var(--hint);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.wl-leave:disabled { opacity: .5; }
+.wl-leave:active { color: #e05a52; }

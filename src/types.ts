@@ -66,10 +66,11 @@ export type Screen =
   | { name: "master-link" }
   | { name: "shop" }
   | { name: "reserved-done" }
+  | { name: "my-waitlist" }
   | { name: "my-products" }
   | { name: "cart" }
   | { name: "schedule" }
-  | { name: "booking"; serviceId: string; specialistId: string };
+  | { name: "booking"; serviceId: string; specialistId: string; presetSlot?: string };
 
 export type CartItem = {
   service_id: string;
