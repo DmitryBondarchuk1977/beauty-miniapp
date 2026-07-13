@@ -320,17 +320,17 @@ export function MyCertificatesScreen({
     );
   }
 
+  // потраченные и просроченные не показываем — только то, чем можно воспользоваться
   const live = items.filter((c) => c.status === "active" || c.status === "issued");
-  const past = items.filter((c) => c.status !== "active" && c.status !== "issued");
 
   return (
     <div>
       <button className="back-btn" onClick={onBack}>‹ Назад</button>
       <div className="sect-title" style={{ marginTop: 0 }}>Мои сертификаты</div>
 
-      {items.length === 0 && (
+      {live.length === 0 && (
         <div className="empty">
-          У вас пока нет сертификатов.
+          Активных сертификатов нет.
           <div style={{ marginTop: 12 }}>
             <button className="mini-btn" onClick={onShop}>
               Купить в магазине
@@ -369,24 +369,6 @@ export function MyCertificatesScreen({
           </div>
         );
       })}
-
-      {past.length > 0 && (
-        <>
-          <div className="sect-title">Использованные</div>
-          {past.map((c) => {
-            const st = CERT_STATUS[c.status] ?? CERT_STATUS.used;
-            return (
-              <div className="cert-card done" key={c.id}>
-                <div className="cert-top">
-                  <span className="cert-amount">{fmtRub(c.amount)}</span>
-                  <span className={`cert-st ${st.cls}`}>{st.label}</span>
-                </div>
-                <div className="cert-foot">{c.code}</div>
-              </div>
-            );
-          })}
-        </>
-      )}
 
       {live.length > 0 && (
         <div className="book-note">

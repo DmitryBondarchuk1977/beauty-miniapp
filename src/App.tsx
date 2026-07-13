@@ -1967,7 +1967,7 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         </button>
       )}
 
-      {certs.length > 0 && (
+      {certs.some((c) => c.usable) && (
         <button
           className="loyalty-card cert-sum"
           onClick={() => onNavigate({ name: "my-certificates" })}
@@ -1978,7 +1978,10 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
               {fmtRub(certs.filter((c) => c.usable).reduce((s, c) => s + Number(c.balance), 0))}
             </div>
             <div className="lc-hint">
-              {certs.filter((c) => c.usable).length} активных из {certs.length}
+              {(() => {
+                const n = certs.filter((c) => c.usable).length;
+                return n === 1 ? "1 активный" : `${n} активных`;
+              })()}
             </div>
           </div>
           <span className="lc-go">›</span>
