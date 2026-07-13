@@ -953,3 +953,70 @@ export async function fetchSpecialistDocs(specialistId: string): Promise<PublicD
     return [];
   }
 }
+
+/* ================= МАГАЗИН ================= */
+
+export type ShopProduct = {
+  id: string;
+  name: string;
+  photo_url: string | null;
+  description: string | null;
+  price: number;
+};
+
+export async function fetchShop(): Promise<ShopProduct[]> {
+  try {
+    const res = await fetch(`${API}/api/shop`);
+    if (!res.ok) return [];
+    const j = (await res.json()) as { ok?: boolean; products?: ShopProduct[] };
+    return j.ok ? (j.products ?? []) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function apiReserveProducts(
+  items: { product_id: string; qty: number }[],
+): Promise<{
+  status: number;
+  data: { ok: boolean; reserved?: number; failed?: { product_id: string; error: string }[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/shop-reserve`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), items }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export type MyProduct = {
+  id: string;
+  name: string;
+  photo_url: string | null;
+  qty: number;
+  price: number;
+  total: number;
+  status: string;
+  created_at: string;
+  paid_at: string | null;
+};
+
+export async function apiMyProducts(): Promise<{
+  status: number;
+  data: { ok: boolean; items: MyProduct[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/my-products`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData() }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}

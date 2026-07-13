@@ -49,6 +49,7 @@ import {
 } from "./lib/api";
 import MasterCabinet from "./MasterCabinet";
 import MasterLinkScreen from "./MasterLinkScreen";
+import ShopScreen, { MyProductsScreen } from "./ShopScreen";
 import { cacheGet, cacheSet, cacheDrop, cacheDropPrefix } from "./lib/cache";
 import type {
   Category,
@@ -221,6 +222,10 @@ export default function App() {
     content = <CancelScreen bookingId={screen.bookingId} onDone={() => goTab("bookings")} onBack={back} />;
   else if (screen.name === "unsub")
     content = <UnsubScreen broadcastId={screen.broadcastId} onHome={() => goTab("home")} />;
+  else if (screen.name === "shop")
+    content = <ShopScreen onBack={back} />;
+  else if (screen.name === "my-products")
+    content = <MyProductsScreen onBack={back} onShop={() => push({ name: "shop" })} />;
   else if (screen.name === "master-link")
     content = (
       <MasterLinkScreen
@@ -516,6 +521,14 @@ function Home({ onNavigate }: { onNavigate: (s: Screen) => void }) {
           </div>
         </>
       )}
+
+      <button className="shop-banner" onClick={() => onNavigate({ name: "shop" })}>
+        <div className="sb-left">
+          <div className="sb-title">🛍 Магазин</div>
+          <div className="sb-sub">Профессиональный уход — заберите при визите</div>
+        </div>
+        <span className="sb-go">›</span>
+      </button>
 
       <div className="sect-title">Наши специалисты</div>
       {loading ? (
@@ -1777,6 +1790,11 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         <button className="menu-row" onClick={() => onNavigate({ name: "my-reviews" })}>
           <span className="menu-ic">★</span>
           <span className="menu-tx">Мои отзывы</span>
+          <span className="menu-go">›</span>
+        </button>
+        <button className="menu-row" onClick={() => onNavigate({ name: "my-products" })}>
+          <span className="menu-ic">🛍</span>
+          <span className="menu-tx">Мои товары</span>
           <span className="menu-go">›</span>
         </button>
         <button className="menu-row" onClick={() => onNavigate({ name: "master-link" })}>

@@ -64,6 +64,8 @@ export type Screen =
   | { name: "unsub"; broadcastId: string | null }
   | { name: "reschedule"; bookingId: string; serviceId: string; specialistId: string; origStartsAt: string }
   | { name: "master-link" }
+  | { name: "shop" }
+  | { name: "my-products" }
   | { name: "cart" }
   | { name: "schedule" }
   | { name: "booking"; serviceId: string; specialistId: string };
