@@ -327,6 +327,7 @@ export default function App() {
       <ScheduleScreen
         positions={checkout}
         products={cartProducts}
+        onSetProductQty={setProductQty}
         onBack={back}
         onHome={() => {
           setCart([]);
@@ -2519,11 +2520,13 @@ type ChosenSlot = {
 function ScheduleScreen({
   positions,
   products,
+  onSetProductQty,
   onBack,
   onHome,
 }: {
   positions: CheckoutPosition[];
   products: CartProduct[];
+  onSetProductQty: (productId: string, qty: number) => void;
   onBack: () => void;
   onHome: () => void;
 }) {
@@ -2559,6 +2562,8 @@ function ScheduleScreen({
 
   // лимит списания баллов на весь заказ
   const cartTotal = positions.reduce((s, p) => s + (chosen[p.key]?.final_price ?? 0), 0);
+  const productsTotal = products.reduce((s2, p) => s2 + p.price * p.qty, 0);
+  const productsCount = products.reduce((s2, p) => s2 + p.qty, 0);
   const pv = Number(loyalty?.point_value ?? 1) || 1;
   const redeemMaxPct = Number(loyalty?.redeem_max_percent ?? 0) || 0;
   const balancePts = Number(loyalty?.balance ?? 0) || 0;
@@ -2739,9 +2744,48 @@ function ScheduleScreen({
             </div>
           );
         })}
+        {products.length > 0 && (
+          <>
+            <div className="sect-title">Товары к выдаче</div>
+            {products.map((p) => (
+              <div className="cart-row" key={p.product_id}>
+                <div className="cp-img">
+                  {p.photo_url ? (
+                    <img loading="lazy" decoding="async" src={imgSrc(p.photo_url, 120, 120)} alt={p.name} />
+                  ) : (
+                    <span>🧴</span>
+                  )}
+                </div>
+                <div className="cart-main">
+                  <div className="nm">{p.name}</div>
+                  <div className="su">{fmtRub(p.price)} за шт</div>
+                  <div className="shop-qty" style={{ marginTop: 6, width: "fit-content" }}>
+                    <button onClick={() => onSetProductQty(p.product_id, p.qty - 1)}>−</button>
+                    <span>{p.qty}</span>
+                    <button onClick={() => onSetProductQty(p.product_id, p.qty + 1)}>+</button>
+                  </div>
+                </div>
+                <div className="cart-price">
+                  <span className="now">{fmtRub(p.price * p.qty)}</span>
+                </div>
+                <button
+                  className="cart-del"
+                  onClick={() => onSetProductQty(p.product_id, 0)}
+                  aria-label="Убрать товар"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <div className="book-note" style={{ marginTop: 4 }}>
+              Придержим в салоне — заберёте при визите. Передумали? Уберите крестиком.
+            </div>
+          </>
+        )}
+
         <div className="price-card">
           <div className="price-row muted">
-            <span>Сумма</span>
+            <span>{products.length > 0 ? "Услуги" : "Сумма"}</span>
             <span>{fmtRub(cartTotal)}</span>
           </div>
           {redeemClamped > 0 && (
@@ -2756,9 +2800,15 @@ function ScheduleScreen({
               <span>−{fmtRub(certClamped)}</span>
             </div>
           )}
+          {productsTotal > 0 && (
+            <div className="price-row muted">
+              <span>Товары ({productsCount} шт)</span>
+              <span>{fmtRub(productsTotal)}</span>
+            </div>
+          )}
           <div className="price-row total">
             <span>К оплате{redeemClamped > 0 || certClamped > 0 ? " деньгами" : ""}</span>
-            <span>{fmtRub(moneyDue)}</span>
+            <span>{fmtRub(moneyDue + productsTotal)}</span>
           </div>
         </div>
 
