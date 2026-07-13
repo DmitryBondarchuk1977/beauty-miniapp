@@ -1,6 +1,7 @@
-import type { CartItem } from "../types";
+import type { CartItem, CartProduct } from "../types";
 
 const KEY = "cart_v1";
+const PKEY = "cart_products_v1";
 
 function cloud() {
   return window.Telegram?.WebApp?.CloudStorage;
@@ -71,5 +72,72 @@ function writeLocal(value: string) {
     localStorage.setItem(KEY, value);
   } catch {
     /* noop */
+  }
+}
+
+
+/* ---------- товары в корзине ---------- */
+
+export function loadCartProducts(): Promise<CartProduct[]> {
+  return new Promise((resolve) => {
+    const cs = cloud();
+    if (cs?.getItem) {
+      try {
+        cs.getItem(PKEY, (err, value) => {
+          if (err || !value) return resolve(readLocalProducts());
+          try {
+            resolve(JSON.parse(value) as CartProduct[]);
+          } catch {
+            resolve([]);
+          }
+        });
+        return;
+      } catch {
+        /* старый клиент */
+      }
+    }
+    resolve(readLocalProducts());
+  });
+}
+
+export function saveCartProducts(items: CartProduct[]) {
+  const value = JSON.stringify(items);
+  const cs = cloud();
+  if (cs?.setItem) {
+    try {
+      cs.setItem(PKEY, value, () => {});
+    } catch {
+      /* noop */
+    }
+  }
+  try {
+    localStorage.setItem(PKEY, value);
+  } catch {
+    /* noop */
+  }
+}
+
+export function clearCartProducts() {
+  const cs = cloud();
+  if (cs?.removeItem) {
+    try {
+      cs.removeItem(PKEY, () => {});
+    } catch {
+      /* noop */
+    }
+  }
+  try {
+    localStorage.removeItem(PKEY);
+  } catch {
+    /* noop */
+  }
+}
+
+function readLocalProducts(): CartProduct[] {
+  try {
+    const v = localStorage.getItem(PKEY);
+    return v ? (JSON.parse(v) as CartProduct[]) : [];
+  } catch {
+    return [];
   }
 }

@@ -626,7 +626,13 @@ export type BookCartItem = {
   gift_discount_percent: number;
 };
 
-export async function apiBookCart(items: BookCartItem[], points = 0, cert = 0, certId: string | null = null): Promise<{
+export async function apiBookCart(
+  items: BookCartItem[],
+  points = 0,
+  cert = 0,
+  certId: string | null = null,
+  products: { product_id: string; qty: number }[] = [],
+): Promise<{
   status: number;
   data: { ok: boolean; order_id?: string; busy?: number[]; error?: string } | null;
 }> {
@@ -634,7 +640,7 @@ export async function apiBookCart(items: BookCartItem[], points = 0, cert = 0, c
     const res = await fetch(`${API}/api/book-cart`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ initData: initData(), items, points, cert, cert_id: certId }),
+      body: JSON.stringify({ initData: initData(), items, points, cert, cert_id: certId, products }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
   } catch {
@@ -1014,6 +1020,22 @@ export async function apiMyProducts(): Promise<{
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ initData: initData() }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export async function apiCancelReservation(saleId: string): Promise<{
+  status: number;
+  data: { ok: boolean; error?: string } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/cancel-reservation`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData(), sale_id: saleId }),
     });
     return { status: res.status, data: await res.json().catch(() => null) };
   } catch {

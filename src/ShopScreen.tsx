@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { fetchShop, apiReserveProducts, apiMyProducts, type ShopProduct, type MyProduct } from "./lib/api";
+import {
+  fetchShop,
+  apiMyProducts,
+  apiCancelReservation,
+  type ShopProduct,
+  type MyProduct,
+} from "./lib/api";
+import type { CartProduct } from "./types";
 
 const fmtRub = (v: number) =>
   new Intl.NumberFormat("ru-RU").format(Math.round(v)) + " ₽";
@@ -10,75 +17,36 @@ function imgSrc(url: string, w: number, h?: number) {
 
 /* ---------- витрина ---------- */
 
-export default function ShopScreen({ onBack }: { onBack: () => void }) {
+export default function ShopScreen({
+  cartProducts,
+  onAdd,
+  onSetQty,
+  onBack,
+  onCart,
+}: {
+  cartProducts: CartProduct[];
+  onAdd: (p: CartProduct) => void;
+  onSetQty: (productId: string, qty: number) => void;
+  onBack: () => void;
+  onCart: () => void;
+}) {
   const [items, setItems] = useState<ShopProduct[] | null>(null);
-  const [cart, setCart] = useState<Record<string, number>>({});
-  const [sending, setSending] = useState(false);
-  const [done, setDone] = useState(false);
 
   useEffect(() => {
     fetchShop().then(setItems);
   }, []);
 
-  const total = Object.entries(cart).reduce((s, [id, q]) => {
-    const p = items?.find((x) => x.id === id);
-    return s + (p ? p.price * q : 0);
-  }, 0);
-  const count = Object.values(cart).reduce((s, q) => s + q, 0);
-
-  function add(id: string) {
-    setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
-  }
-  function sub(id: string) {
-    setCart((c) => {
-      const n = (c[id] ?? 0) - 1;
-      const next = { ...c };
-      if (n <= 0) delete next[id];
-      else next[id] = n;
-      return next;
-    });
-  }
-
-  async function reserve() {
-    setSending(true);
-    const r = await apiReserveProducts(
-      Object.entries(cart).map(([product_id, qty]) => ({ product_id, qty })),
-    );
-    setSending(false);
-
-    if (r.status === 200 && r.data?.ok) {
-      setCart({});
-      setDone(true);
-      fetchShop().then(setItems);
-    } else {
-      alert("Не удалось отложить. Возможно, товар закончился.");
-      fetchShop().then(setItems);
-    }
-  }
-
-  if (done) {
-    return (
-      <div>
-        <button className="back-btn" onClick={onBack}>‹ Назад</button>
-        <div className="shop-done">
-          <div className="shop-done-ic">🛍</div>
-          <div className="shop-done-t">Товары отложены</div>
-          <div className="shop-done-s">
-            Заберите их в салоне при следующем визите — мы придержим. Оплата на месте.
-          </div>
-          <button className="btn btn-primary" onClick={() => setDone(false)}>
-            Вернуться в магазин
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const qtyOf = (id: string) => cartProducts.find((x) => x.product_id === id)?.qty ?? 0;
+  const count = cartProducts.reduce((s, p) => s + p.qty, 0);
+  const total = cartProducts.reduce((s, p) => s + p.price * p.qty, 0);
 
   return (
     <div>
       <button className="back-btn" onClick={onBack}>‹ Назад</button>
       <div className="sect-title" style={{ marginTop: 0 }}>Магазин</div>
-      <div className="book-sub">Отложите товар — заберёте и оплатите при визите в салон.</div>
+      <div className="book-sub">
+        Добавьте товары в корзину — заберёте и оплатите при визите в салон.
+      </div>
 
       {!items ? (
         <div className="shop-grid">
@@ -91,7 +59,7 @@ export default function ShopScreen({ onBack }: { onBack: () => void }) {
       ) : (
         <div className="shop-grid">
           {items.map((p) => {
-            const q = cart[p.id] ?? 0;
+            const q = qtyOf(p.id);
             return (
               <div key={p.id} className="shop-card">
                 <div className="shop-img">
@@ -107,14 +75,25 @@ export default function ShopScreen({ onBack }: { onBack: () => void }) {
                   <div className="shop-bottom">
                     <span className="shop-price">{fmtRub(p.price)}</span>
                     {q === 0 ? (
-                      <button className="shop-add" onClick={() => add(p.id)}>
+                      <button
+                        className="shop-add"
+                        onClick={() =>
+                          onAdd({
+                            product_id: p.id,
+                            name: p.name,
+                            photo_url: p.photo_url,
+                            price: p.price,
+                            qty: 1,
+                          })
+                        }
+                      >
                         +
                       </button>
                     ) : (
                       <div className="shop-qty">
-                        <button onClick={() => sub(p.id)}>−</button>
+                        <button onClick={() => onSetQty(p.id, q - 1)}>−</button>
                         <span>{q}</span>
-                        <button onClick={() => add(p.id)}>+</button>
+                        <button onClick={() => onSetQty(p.id, q + 1)}>+</button>
                       </div>
                     )}
                   </div>
@@ -127,8 +106,8 @@ export default function ShopScreen({ onBack }: { onBack: () => void }) {
 
       {count > 0 && (
         <div className="book-bar">
-          <button className="btn btn-primary" disabled={sending} onClick={reserve}>
-            {sending ? "Откладываем…" : `Отложить ${count} шт · ${fmtRub(total)}`}
+          <button className="btn btn-primary" onClick={onCart}>
+            В корзине {count} шт · {fmtRub(total)}
           </button>
         </div>
       )}
@@ -140,12 +119,24 @@ export default function ShopScreen({ onBack }: { onBack: () => void }) {
 
 export function MyProductsScreen({ onBack, onShop }: { onBack: () => void; onShop: () => void }) {
   const [items, setItems] = useState<MyProduct[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
+  function load() {
     apiMyProducts().then((r) => {
       setItems(r.status === 200 && r.data?.ok ? r.data.items : []);
     });
-  }, []);
+  }
+
+  useEffect(load, []);
+
+  async function cancel(id: string) {
+    if (!confirm("Отменить резерв? Товар вернётся в продажу.")) return;
+    setBusy(id);
+    const r = await apiCancelReservation(id);
+    setBusy(null);
+    if (r.status === 200 && r.data?.ok) load();
+    else alert("Не удалось отменить.");
+  }
 
   if (!items) {
     return (
@@ -182,7 +173,7 @@ export function MyProductsScreen({ onBack, onShop }: { onBack: () => void; onSho
             Заберите при визите в салон — оплата на месте.
           </div>
           {reserved.map((i) => (
-            <ProductLine key={i.id} item={i} />
+            <ProductLine key={i.id} item={i} busy={busy === i.id} onCancel={() => cancel(i.id)} />
           ))}
         </>
       )}
@@ -199,7 +190,15 @@ export function MyProductsScreen({ onBack, onShop }: { onBack: () => void; onSho
   );
 }
 
-function ProductLine({ item }: { item: MyProduct }) {
+function ProductLine({
+  item,
+  busy,
+  onCancel,
+}: {
+  item: MyProduct;
+  busy?: boolean;
+  onCancel?: () => void;
+}) {
   return (
     <div className="mp-row">
       <div className="mp-img">
@@ -214,6 +213,11 @@ function ProductLine({ item }: { item: MyProduct }) {
         <div className="mp-meta">
           {item.qty} шт × {fmtRub(item.price)}
         </div>
+        {onCancel && (
+          <button className="mp-cancel" disabled={busy} onClick={onCancel}>
+            {busy ? "Отменяем…" : "Отменить резерв"}
+          </button>
+        )}
       </div>
       <div className="mp-right">
         <div className="mp-total">{fmtRub(item.total)}</div>

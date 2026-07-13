@@ -42,6 +42,7 @@ import {
   apiRescheduleCancel,
   apiRescheduleConfirm,
   apiMasterWhoami,
+  apiReserveProducts,
   fetchSpecialistDocs,
   type ActiveReschedule,
   type MasterMe,
@@ -61,9 +62,13 @@ import type {
   Master,
   Screen,
   CartItem,
+  CartProduct,
   CheckoutPosition,
 } from "./types";
-import { loadCart, saveCart, clearCart } from "./lib/cartStorage";
+import {
+  loadCart, saveCart, clearCart,
+  loadCartProducts, saveCartProducts, clearCartProducts,
+} from "./lib/cartStorage";
 
 const tg = window.Telegram?.WebApp;
 
@@ -117,6 +122,55 @@ export default function App() {
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartLoaded, setCartLoaded] = useState(false);
+
+  // товары в той же корзине
+  const [cartProducts, setCartProducts] = useState<CartProduct[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+
+  useEffect(() => {
+    loadCartProducts().then((p) => {
+      setCartProducts(p);
+      setProductsLoaded(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (productsLoaded) saveCartProducts(cartProducts);
+  }, [cartProducts, productsLoaded]);
+
+  const addProduct = useCallback((p: CartProduct) => {
+    setCartProducts((prev) => {
+      const i = prev.findIndex((x) => x.product_id === p.product_id);
+      if (i >= 0) {
+        const next = [...prev];
+        next[i] = { ...next[i], qty: next[i].qty + p.qty };
+        return next;
+      }
+      return [...prev, p];
+    });
+  }, []);
+
+  const reserveOnly = useCallback(async () => {
+    const r = await apiReserveProducts(
+      cartProducts.map((p) => ({ product_id: p.product_id, qty: p.qty })),
+    );
+    if (r.status === 200 && r.data?.ok) {
+      setCartProducts([]);
+      clearCartProducts();
+      cacheDrop("my-products");
+      push({ name: "reserved-done" });
+    } else {
+      alert("Не удалось отложить. Возможно, товар закончился.");
+    }
+  }, [cartProducts]);
+
+  const setProductQty = useCallback((productId: string, qty: number) => {
+    setCartProducts((prev) =>
+      qty <= 0
+        ? prev.filter((x) => x.product_id !== productId)
+        : prev.map((x) => (x.product_id === productId ? { ...x, qty } : x)),
+    );
+  }, []);
 
   // восстановление корзины при запуске (CloudStorage → localStorage)
   useEffect(() => {
@@ -223,7 +277,15 @@ export default function App() {
   else if (screen.name === "unsub")
     content = <UnsubScreen broadcastId={screen.broadcastId} onHome={() => goTab("home")} />;
   else if (screen.name === "shop")
-    content = <ShopScreen onBack={back} />;
+    content = (
+      <ShopScreen
+        cartProducts={cartProducts}
+        onAdd={addProduct}
+        onSetQty={setProductQty}
+        onBack={back}
+        onCart={() => goTab("cart")}
+      />
+    );
   else if (screen.name === "my-products")
     content = <MyProductsScreen onBack={back} onShop={() => push({ name: "shop" })} />;
   else if (screen.name === "master-link")
@@ -248,9 +310,36 @@ export default function App() {
       />
     );
   else if (screen.name === "cart")
-    content = <CartScreen cart={cart} onRemove={removeFromCart} onAdd={() => goTab("home")} onCheckout={startCheckout} />;
+    content = (
+      <CartScreen
+        cart={cart}
+        products={cartProducts}
+        onRemove={removeFromCart}
+        onSetProductQty={setProductQty}
+        onAdd={() => goTab("home")}
+        onShop={() => push({ name: "shop" })}
+        onCheckout={startCheckout}
+        onReserveOnly={reserveOnly}
+      />
+    );
   else if (screen.name === "schedule")
-    content = <ScheduleScreen positions={checkout} onBack={back} onHome={() => { setCart([]); clearCart(); goTab("home"); }} />;
+    content = (
+      <ScheduleScreen
+        positions={checkout}
+        products={cartProducts}
+        onBack={back}
+        onHome={() => {
+          setCart([]);
+          clearCart();
+          setCartProducts([]);
+          clearCartProducts();
+          cacheDrop("my-products");
+          goTab("home");
+        }}
+      />
+    );
+  else if (screen.name === "reserved-done")
+    content = <ReservedDoneScreen onHome={() => goTab("home")} onMine={() => push({ name: "my-products" })} />;
   else
     content = (
       <BookingScreen
@@ -274,7 +363,11 @@ export default function App() {
     <div className={showTabBar ? "app has-tabbar" : "app"}>
       {content}
       {showTabBar && (
-        <TabBar active={activeTab} cartCount={cart.length} onTab={goTab} />
+        <TabBar
+          active={activeTab}
+          cartCount={cart.length + cartProducts.reduce((s2, p) => s2 + p.qty, 0)}
+          onTab={goTab}
+        />
       )}
     </div>
   );
@@ -2021,16 +2114,28 @@ function MyReviewsScreen({ onBack }: { onBack: () => void }) {
 /* ---------- CART ---------- */
 function CartScreen({
   cart,
+  products,
   onRemove,
+  onSetProductQty,
   onAdd,
+  onShop,
   onCheckout,
+  onReserveOnly,
 }: {
   cart: CartItem[];
+  products: CartProduct[];
   onRemove: (i: number) => void;
+  onSetProductQty: (productId: string, qty: number) => void;
   onAdd: () => void;
+  onShop: () => void;
   onCheckout: (positions: CheckoutPosition[]) => void;
+  onReserveOnly: () => void;
 }) {
   const [price, setPrice] = useState<CartPrice | null>(null);
+  const [reserving, setReserving] = useState(false);
+
+  const productsTotal = products.reduce((s, p) => s + p.price * p.qty, 0);
+  const productsCount = products.reduce((s, p) => s + p.qty, 0);
 
   useEffect(() => {
     if (cart.length === 0) { setPrice(null); return; }
@@ -2041,13 +2146,17 @@ function CartScreen({
     );
   }, [cart]);
 
-  if (cart.length === 0) {
+  if (cart.length === 0 && products.length === 0) {
     return (
       <div>
         <div className="sect-title" style={{ marginTop: 0 }}>Корзина</div>
-        <div className="empty">В корзине пусто. Добавьте услуги, чтобы записаться на несколько процедур сразу.</div>
-        <div style={{ maxWidth: 320, margin: "16px auto 0" }}>
+        <div className="empty">
+          В корзине пусто. Добавьте услуги, чтобы записаться на несколько процедур сразу,
+          или загляните в магазин.
+        </div>
+        <div style={{ maxWidth: 320, margin: "16px auto 0", display: "grid", gap: 8 }}>
           <button className="btn btn-primary" onClick={onAdd}>К услугам</button>
+          <button className="mini-btn" onClick={onShop}>В магазин</button>
         </div>
       </div>
     );
@@ -2142,20 +2251,60 @@ function CartScreen({
         </>
       )}
 
+      {products.length > 0 && (
+        <>
+          <div className="sect-title">Товары</div>
+          {products.map((p) => (
+            <div className="cart-row" key={p.product_id}>
+              <div className="cp-img">
+                {p.photo_url ? (
+                  <img loading="lazy" decoding="async" src={imgSrc(p.photo_url, 120, 120)} alt={p.name} />
+                ) : (
+                  <span>🧴</span>
+                )}
+              </div>
+              <div className="cart-main">
+                <div className="nm">{p.name}</div>
+                <div className="su">{fmtRub(p.price)} за шт</div>
+                <div className="shop-qty" style={{ marginTop: 6, width: "fit-content" }}>
+                  <button onClick={() => onSetProductQty(p.product_id, p.qty - 1)}>−</button>
+                  <span>{p.qty}</span>
+                  <button onClick={() => onSetProductQty(p.product_id, p.qty + 1)}>+</button>
+                </div>
+              </div>
+              <div className="cart-price">
+                <span className="now">{fmtRub(p.price * p.qty)}</span>
+              </div>
+            </div>
+          ))}
+          <div className="book-note" style={{ marginTop: 4 }}>
+            Товары придержим в салоне — заберёте и оплатите на месте.
+          </div>
+        </>
+      )}
+
       <div className="price-card">
-        <div className="price-row muted">
-          <span>Стоимость</span>
-          <span>{fmtRub(subtotal)}</span>
-        </div>
+        {cart.length > 0 && (
+          <div className="price-row muted">
+            <span>Услуги</span>
+            <span>{fmtRub(subtotal)}</span>
+          </div>
+        )}
         {discount > 0 && (
           <div className="price-row discount">
             <span>Скидка</span>
             <span>−{fmtRub(discount)}</span>
           </div>
         )}
+        {products.length > 0 && (
+          <div className="price-row muted">
+            <span>Товары ({productsCount} шт)</span>
+            <span>{fmtRub(productsTotal)}</span>
+          </div>
+        )}
         <div className="price-row total">
           <span>К оплате</span>
-          <span>{fmtRub(total)}</span>
+          <span>{fmtRub(total + productsTotal)}</span>
         </div>
       </div>
 
@@ -2164,8 +2313,49 @@ function CartScreen({
       )}
 
       <div className="book-bar">
-        <button className="btn btn-primary" onClick={goSchedule}>Выбрать время</button>
-        <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={onAdd}>Добавить ещё услугу</button>
+        {cart.length > 0 ? (
+          <>
+            <button className="btn btn-primary" onClick={goSchedule}>
+              Выбрать время
+            </button>
+            <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={onAdd}>
+              Добавить ещё услугу
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="btn btn-primary"
+              disabled={reserving}
+              onClick={() => {
+                setReserving(true);
+                onReserveOnly();
+              }}
+            >
+              {reserving ? "Откладываем…" : `Отложить · ${fmtRub(productsTotal)}`}
+            </button>
+            <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={onAdd}>
+              Записаться на услугу
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- ТОВАРЫ ОТЛОЖЕНЫ ---------- */
+function ReservedDoneScreen({ onHome, onMine }: { onHome: () => void; onMine: () => void }) {
+  return (
+    <div className="shop-done">
+      <div className="shop-done-ic">🛍</div>
+      <div className="shop-done-t">Товары отложены</div>
+      <div className="shop-done-s">
+        Придержим их в салоне. Заберёте и оплатите при визите.
+      </div>
+      <div style={{ maxWidth: 300, margin: "0 auto", display: "grid", gap: 8 }}>
+        <button className="btn btn-primary" onClick={onMine}>Мои товары</button>
+        <button className="btn btn-ghost" onClick={onHome}>На главную</button>
       </div>
     </div>
   );
@@ -2328,10 +2518,12 @@ type ChosenSlot = {
 
 function ScheduleScreen({
   positions,
+  products,
   onBack,
   onHome,
 }: {
   positions: CheckoutPosition[];
+  products: CartProduct[];
   onBack: () => void;
   onHome: () => void;
 }) {
@@ -2457,7 +2649,13 @@ function ScheduleScreen({
         gift_discount_percent: p.gift_discount_percent,
       };
     });
-    const r = await apiBookCart(items, redeemClamped, certClamped, certId);
+    const r = await apiBookCart(
+      items,
+      redeemClamped,
+      certClamped,
+      certId,
+      products.map((p) => ({ product_id: p.product_id, qty: p.qty })),
+    );
     setSubmitting(false);
     if (r.status === 200 && r.data?.ok) {
       setOrderDone(true);

@@ -65,6 +65,7 @@ export type Screen =
   | { name: "reschedule"; bookingId: string; serviceId: string; specialistId: string; origStartsAt: string }
   | { name: "master-link" }
   | { name: "shop" }
+  | { name: "reserved-done" }
   | { name: "my-products" }
   | { name: "cart" }
   | { name: "schedule" }
@@ -76,6 +77,15 @@ export type CartItem = {
   specialist_id: string;
   specialist_name: string;
   base_price: number;
+};
+
+/** товар в корзине */
+export type CartProduct = {
+  product_id: string;
+  name: string;
+  photo_url: string | null;
+  price: number;
+  qty: number;
 };
 
 export type CheckoutPosition = {
