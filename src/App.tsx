@@ -56,7 +56,7 @@ import {
 } from "./lib/api";
 import MasterCabinet from "./MasterCabinet";
 import MasterLinkScreen from "./MasterLinkScreen";
-import ShopScreen, { MyProductsScreen } from "./ShopScreen";
+import ShopScreen, { MyProductsScreen, MyCertificatesScreen } from "./ShopScreen";
 import { cacheGet, cacheSet, cacheDrop, cacheDropPrefix } from "./lib/cache";
 import type {
   Category,
@@ -307,6 +307,10 @@ export default function App() {
           })
         }
       />
+    );
+  else if (screen.name === "my-certificates")
+    content = (
+      <MyCertificatesScreen onBack={back} onShop={() => push({ name: "shop" })} />
     );
   else if (screen.name === "my-products")
     content = <MyProductsScreen onBack={back} onShop={() => push({ name: "shop" })} />;
@@ -1964,25 +1968,21 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
       )}
 
       {certs.length > 0 && (
-        <div className="cert-list-profile">
-          {certs.map((c) => (
-            <div key={c.id} className={`cert-item ${c.usable ? "" : "off"}`}>
-              <div className="ci-left">
-                <div className="ci-code">🎟 {c.code}</div>
-                <div className="ci-exp">
-                  {c.status === "expired"
-                    ? "Просрочен"
-                    : c.status === "used"
-                    ? "Использован"
-                    : c.expires_at
-                    ? `Действует до ${certDate(c.expires_at)}`
-                    : "Бессрочный"}
-                </div>
-              </div>
-              <div className="ci-bal">{fmtRub(c.balance)}</div>
+        <button
+          className="loyalty-card cert-sum"
+          onClick={() => onNavigate({ name: "my-certificates" })}
+        >
+          <div className="lc-left">
+            <div className="lc-label">Мои сертификаты</div>
+            <div className="lc-balance">
+              {fmtRub(certs.filter((c) => c.usable).reduce((s, c) => s + Number(c.balance), 0))}
             </div>
-          ))}
-        </div>
+            <div className="lc-hint">
+              {certs.filter((c) => c.usable).length} активных из {certs.length}
+            </div>
+          </div>
+          <span className="lc-go">›</span>
+        </button>
       )}
 
       <div className="cert-activate">
@@ -2019,6 +2019,11 @@ function ProfileScreen({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         <button className="menu-row" onClick={() => onNavigate({ name: "my-waitlist" })}>
           <span className="menu-ic">🔔</span>
           <span className="menu-tx">Лист ожидания</span>
+          <span className="menu-go">›</span>
+        </button>
+        <button className="menu-row" onClick={() => onNavigate({ name: "my-certificates" })}>
+          <span className="menu-ic">🎁</span>
+          <span className="menu-tx">Мои сертификаты</span>
           <span className="menu-go">›</span>
         </button>
         <button className="menu-row" onClick={() => onNavigate({ name: "my-products" })}>
@@ -2273,6 +2278,9 @@ function CartScreen({
   const productsTotal = products.reduce((s, p) => s + p.price * p.qty, 0);
   const productsCount = products.reduce((s, p) => s + p.qty, 0);
 
+  const goods = products.filter((p) => p.kind !== "certificate");
+  const gifts = products.filter((p) => p.kind === "certificate");
+
   useEffect(() => {
     if (cart.length === 0) { setPrice(null); return; }
     apiPriceCart(cart.map((c) => ({ service_id: c.service_id, specialist_id: c.specialist_id }))).then(
@@ -2387,34 +2395,34 @@ function CartScreen({
         </>
       )}
 
-      {products.length > 0 && (
+      {goods.length > 0 && (
         <>
           <div className="sect-title">Товары</div>
-          {products.map((p) => (
-            <div className="cart-row" key={p.product_id}>
-              <div className="cp-img">
-                {p.photo_url ? (
-                  <img loading="lazy" decoding="async" src={imgSrc(p.photo_url, 120, 120)} alt={p.name} />
-                ) : (
-                  <span>🧴</span>
-                )}
-              </div>
-              <div className="cart-main">
-                <div className="nm">{p.name}</div>
-                <div className="su">{fmtRub(p.price)} за шт</div>
-                <div className="shop-qty" style={{ marginTop: 6, width: "fit-content" }}>
-                  <button onClick={() => onSetProductQty(p.product_id, p.qty - 1)}>−</button>
-                  <span>{p.qty}</span>
-                  <button onClick={() => onSetProductQty(p.product_id, p.qty + 1)}>+</button>
-                </div>
-              </div>
-              <div className="cart-price">
-                <span className="now">{fmtRub(p.price * p.qty)}</span>
-              </div>
-            </div>
+          {goods.map((p) => (
+            <CartProductRow
+              key={p.product_id}
+              p={p}
+              onSetQty={onSetProductQty}
+            />
           ))}
           <div className="book-note" style={{ marginTop: 4 }}>
             Товары придержим в салоне — заберёте и оплатите на месте.
+          </div>
+        </>
+      )}
+
+      {gifts.length > 0 && (
+        <>
+          <div className="sect-title">Подарочные сертификаты</div>
+          {gifts.map((p) => (
+            <CartProductRow
+              key={p.product_id}
+              p={p}
+              onSetQty={onSetProductQty}
+            />
+          ))}
+          <div className="book-note" style={{ marginTop: 4 }}>
+            Код придёт в этот чат, как только оплата будет подтверждена в салоне.
           </div>
         </>
       )}
@@ -3020,19 +3028,25 @@ function ScheduleScreen({
         })}
         {products.length > 0 && (
           <>
-            <div className="sect-title">Товары к выдаче</div>
+            <div className="sect-title">
+              {products.some((p) => p.kind !== "certificate") ? "Товары к выдаче" : "Сертификаты"}
+            </div>
             {products.map((p) => (
               <div className="cart-row" key={p.product_id}>
                 <div className="cp-img">
                   {p.photo_url ? (
                     <img loading="lazy" decoding="async" src={imgSrc(p.photo_url, 120, 120)} alt={p.name} />
                   ) : (
-                    <span>🧴</span>
+                    <span>{p.kind === "certificate" ? "🎁" : "🧴"}</span>
                   )}
                 </div>
                 <div className="cart-main">
                   <div className="nm">{p.name}</div>
-                  <div className="su">{fmtRub(p.price)} за шт</div>
+                  <div className="su">
+                    {p.kind === "certificate" && p.face_value
+                      ? `Номинал ${fmtRub(Number(p.face_value))}`
+                      : `${fmtRub(p.price)} за шт`}
+                  </div>
                   <div className="shop-qty" style={{ marginTop: 6, width: "fit-content" }}>
                     <button onClick={() => onSetProductQty(p.product_id, p.qty - 1)}>−</button>
                     <span>{p.qty}</span>
@@ -3045,14 +3059,14 @@ function ScheduleScreen({
                 <button
                   className="cart-del"
                   onClick={() => onSetProductQty(p.product_id, 0)}
-                  aria-label="Убрать товар"
+                  aria-label="Убрать"
                 >
                   ×
                 </button>
               </div>
             ))}
             <div className="book-note" style={{ marginTop: 4 }}>
-              Придержим в салоне — заберёте при визите. Передумали? Уберите крестиком.
+              Придержим до визита. Передумали? Уберите крестиком.
             </div>
           </>
         )}
@@ -3278,3 +3292,42 @@ function ConfirmScreen({ bookingId, onHome }: { bookingId: string; onHome: () =>
   );
 }
 
+
+/* строка товара/сертификата в корзине */
+function CartProductRow({
+  p,
+  onSetQty,
+}: {
+  p: CartProduct;
+  onSetQty: (productId: string, qty: number) => void;
+}) {
+  const isCert = p.kind === "certificate";
+
+  return (
+    <div className="cart-row">
+      <div className="cp-img">
+        {p.photo_url ? (
+          <img loading="lazy" decoding="async" src={imgSrc(p.photo_url, 120, 120)} alt={p.name} />
+        ) : (
+          <span>{isCert ? "🎁" : "🧴"}</span>
+        )}
+      </div>
+      <div className="cart-main">
+        <div className="nm">{p.name}</div>
+        <div className="su">
+          {isCert && p.face_value
+            ? `Номинал ${fmtRub(Number(p.face_value))}`
+            : `${fmtRub(p.price)} за шт`}
+        </div>
+        <div className="shop-qty" style={{ marginTop: 6, width: "fit-content" }}>
+          <button onClick={() => onSetQty(p.product_id, p.qty - 1)}>−</button>
+          <span>{p.qty}</span>
+          <button onClick={() => onSetQty(p.product_id, p.qty + 1)}>+</button>
+        </div>
+      </div>
+      <div className="cart-price">
+        <span className="now">{fmtRub(p.price * p.qty)}</span>
+      </div>
+    </div>
+  );
+}

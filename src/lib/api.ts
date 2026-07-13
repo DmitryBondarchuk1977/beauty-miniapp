@@ -964,10 +964,13 @@ export async function fetchSpecialistDocs(specialistId: string): Promise<PublicD
 
 export type ShopProduct = {
   id: string;
+  kind: "sale" | "certificate";
   name: string;
   photo_url: string | null;
   description: string | null;
   price: number;
+  face_value: number | null;      // номинал сертификата
+  validity_days: number | null;   // сколько дней действует
 };
 
 export async function fetchShop(): Promise<ShopProduct[]> {
@@ -1128,6 +1131,32 @@ export async function apiMyWaitlist(): Promise<{
 }> {
   try {
     const res = await fetch(`${API}/api/my-waitlist`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: initData() }),
+    });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+export type MyCertificate = {
+  id: string;
+  code: string;
+  amount: number;
+  balance: number;
+  status: "issued" | "active" | "used" | "expired" | "disabled";
+  expires_at: string | null;
+  created_at: string;
+};
+
+export async function apiMyCertificates(): Promise<{
+  status: number;
+  data: { ok: boolean; items: MyCertificate[] } | null;
+}> {
+  try {
+    const res = await fetch(`${API}/api/my-certificates`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ initData: initData() }),

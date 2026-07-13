@@ -68,6 +68,7 @@ export type Screen =
   | { name: "reserved-done" }
   | { name: "my-waitlist" }
   | { name: "my-products" }
+  | { name: "my-certificates" }
   | { name: "cart" }
   | { name: "schedule" }
   | { name: "booking"; serviceId: string; specialistId: string; presetSlot?: string };
@@ -80,13 +81,15 @@ export type CartItem = {
   base_price: number;
 };
 
-/** товар в корзине */
+/** товар или сертификат в корзине */
 export type CartProduct = {
   product_id: string;
+  kind: "sale" | "certificate";
   name: string;
   photo_url: string | null;
   price: number;
   qty: number;
+  face_value?: number | null;
 };
 
 export type CheckoutPosition = {
