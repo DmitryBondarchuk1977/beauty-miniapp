@@ -241,20 +241,41 @@ export default function App() {
     tg?.expand();
   }, []);
 
-  // нативная кнопка «Назад» в Telegram
+  // нативная кнопка «Назад» в Telegram.
+  // ВАЖНО: в Telegram WebApp < 6.1 объект BackButton существует, но его
+  // методы (show/hide/onClick) кидают ошибку "not supported" и роняют экран.
+  // Поэтому проверяем версию и оборачиваем вызовы в try/catch.
+  const bbSupported = (() => {
+    const ver = parseFloat(window.Telegram?.WebApp?.version ?? "0");
+    return ver >= 6.1;
+  })();
+
   useEffect(() => {
+    if (!bbSupported) return;
     const bb = tg?.BackButton;
     if (!bb) return;
     const handler = () => setStack((p) => (p.length > 1 ? p.slice(0, -1) : p));
-    bb.onClick(handler);
-    return () => bb.offClick(handler);
-  }, []);
+    try {
+      bb.onClick(handler);
+    } catch {
+      return;
+    }
+    return () => {
+      try { bb.offClick(handler); } catch { /* ignore */ }
+    };
+  }, [bbSupported]);
+
   useEffect(() => {
+    if (!bbSupported) return;
     const bb = tg?.BackButton;
     if (!bb) return;
-    if (stack.length > 1) bb.show();
-    else bb.hide();
-  }, [stack.length]);
+    try {
+      if (stack.length > 1) bb.show();
+      else bb.hide();
+    } catch {
+      /* старый Telegram — тихо игнорируем */
+    }
+  }, [stack.length, bbSupported]);
 
   const goTab = (name: "home" | "bookings" | "cart" | "profile") => setStack([{ name }]);
 
