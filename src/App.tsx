@@ -72,6 +72,14 @@ import type {
   CheckoutPosition,
 } from "./types";
 import {
+
+/** Нормализует timestamp из БД (пробел→T, +00→+00:00) для надёжного парсинга во всех браузерах. */
+function toIso(raw: string): string {
+  const t = String(raw ?? "").trim();
+  if (!t) return t;
+  return t.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
+}
+
   loadCart, saveCart, clearCart,
   loadCartProducts, saveCartProducts, clearCartProducts,
 } from "./lib/cartStorage";
@@ -478,7 +486,7 @@ function IconUser() {
 
 /* ---------- helpers ---------- */
 function certDate(iso: string) {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(toIso(iso)));
 }
 
 function CertPicker({
@@ -902,7 +910,7 @@ function slotTime(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Europe/Moscow",
-  }).format(new Date(iso));
+  }).format(new Date(toIso(iso)));
 }
 function fullDateTime(iso: string) {
   return new Intl.DateTimeFormat("ru-RU", {
@@ -912,7 +920,7 @@ function fullDateTime(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Europe/Moscow",
-  }).format(new Date(iso));
+  }).format(new Date(toIso(iso)));
 }
 
 function BookingScreen({
@@ -1271,7 +1279,7 @@ function stars(n: number) {
   return "★★★★★".slice(0, r) + "☆☆☆☆☆".slice(0, 5 - r);
 }
 function reviewDate(iso: string) {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(new Date(toIso(iso)));
 }
 
 function SpecialistScreen({
@@ -2057,7 +2065,7 @@ function fmtPoints(n: number) {
   return `${n} ${pointsWord(n)}`;
 }
 function loyaltyDate(iso: string) {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "Europe/Moscow" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "Europe/Moscow" }).format(new Date(toIso(iso)));
 }
 function txLabel(t: LoyaltyTx) {
   if (t.note) return t.note;
@@ -2561,7 +2569,7 @@ function MyWaitlistScreen({
           <div className="sect-title">Освободилось — успейте записаться</div>
           {offered.map((w) => {
             const left = w.offer_expires_at
-              ? Math.max(0, new Date(w.offer_expires_at).getTime() - now)
+              ? Math.max(0, new Date(toIso(w.offer_expires_at)).getTime() - now)
               : 0;
             const mm = Math.floor(left / 60000);
             const ss = Math.floor((left % 60000) / 1000);
