@@ -1004,11 +1004,40 @@ function BookingScreen({
     setSlotsLoading(true);
     setSlot(null);
     setWlMsg(null);
-    fetchDaySlots(specialistId, serviceId, date).then((s) => {
-      setSlots(s);
+    fetchDaySlots(specialistId, serviceId, date).then(async (s) => {
+      // клиент не может быть у двух мастеров одновременно: помечаем занятыми
+      // слоты, пересекающиеся с уже существующими записями клиента в этот день.
+      let filtered = s;
+      try {
+        const mb = await apiMyBookings();
+        if (mb.status === 200 && mb.data?.ok) {
+          const busy = mb.data.upcoming
+            .filter(
+              (b) =>
+                b.status !== "cancelled" &&
+                b.status !== "no_show" &&
+                b.starts_at.slice(0, 10) === date,
+            )
+            .map((b) => [
+              new Date(toIso(b.starts_at)).getTime(),
+              new Date(toIso(b.ends_at)).getTime(),
+            ]) as [number, number][];
+          if (busy.length > 0) {
+            filtered = s.map((slot) => {
+              const st = new Date(toIso(slot.slot_start)).getTime();
+              const en = new Date(toIso(slot.slot_end)).getTime();
+              const overlap = busy.some(([bs, be]) => st < be && en > bs);
+              return overlap ? { ...slot, is_free: false, selfBusy: true } : slot;
+            });
+          }
+        }
+      } catch {
+        /* если записи клиента не загрузились — показываем слоты как есть */
+      }
+      setSlots(filtered);
       setSlotsLoading(false);
       // пришли по ссылке «освободилось время» — сразу подставляем слот
-      if (presetSlot && s.some((x) => x.slot_start === presetSlot && x.is_free)) {
+      if (presetSlot && filtered.some((x) => x.slot_start === presetSlot && x.is_free)) {
         setSlot(presetSlot);
       }
     });
@@ -1165,6 +1194,20 @@ function BookingScreen({
                     onClick={() => setSlot(s.slot_start)}
                   >
                     {slotTime(s.slot_start)}
+                  </button>
+                );
+              }
+              // слот пересекается с собственной записью клиента у другого мастера
+              if ((s as DaySlot & { selfBusy?: boolean }).selfBusy) {
+                return (
+                  <button
+                    key={s.slot_start}
+                    className="slot busy self"
+                    disabled
+                    title="У вас уже есть запись на это время"
+                  >
+                    {slotTime(s.slot_start)}
+                    <span className="slot-mark">✓</span>
                   </button>
                 );
               }
