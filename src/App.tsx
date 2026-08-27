@@ -72,6 +72,9 @@ import type {
   CheckoutPosition,
 } from "./types";
 import {
+  loadCart, saveCart, clearCart,
+  loadCartProducts, saveCartProducts, clearCartProducts,
+} from "./lib/cartStorage";
 
 /** Нормализует timestamp из БД (пробел→T, +00→+00:00) для надёжного парсинга во всех браузерах. */
 function toIso(raw: string): string {
@@ -79,10 +82,6 @@ function toIso(raw: string): string {
   if (!t) return t;
   return t.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
 }
-
-  loadCart, saveCart, clearCart,
-  loadCartProducts, saveCartProducts, clearCartProducts,
-} from "./lib/cartStorage";
 
 const tg = window.Telegram?.WebApp;
 
