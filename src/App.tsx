@@ -79,7 +79,10 @@ import {
 /** Нормализует timestamp из БД (пробел→T, +00→+00:00) для надёжного парсинга во всех браузерах. */
 function toIso(raw: string): string {
   const t = String(raw ?? "").trim();
-  if (!t) return t;
+  // Пустой/отсутствующий вход: возвращаем epoch-строку, чтобы new Date()
+  // дал валидную дату, а не Invalid Date (иначе Intl.format() бросает
+  // "Invalid time value" и роняет экран). Раньше new Date(null) вёл себя так же.
+  if (!t) return "1970-01-01T00:00:00Z";
   return t.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
 }
 
